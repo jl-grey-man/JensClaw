@@ -2,7 +2,7 @@
 
 What if your Telegram chat was a terminal? Not a dumbed-down chatbot that responds with canned text, but an actual AI agent that can run commands on your server, edit your files, search your codebase, browse the web, schedule recurring tasks, and remember what you told it three weeks ago?
 
-That's MicroClaw -- a Rust implementation of the agentic AI-in-a-chat pattern, connecting Claude to Telegram with full tool execution. It started as a rewrite of [nanoclaw](https://github.com/gavrielc/nanoclaw/), a TypeScript project that does the same thing over WhatsApp, but rebuilt from scratch in Rust with a focus on simplicity and additional capabilities.
+That's MicroClaw -- a Rust implementation of the agentic AI-in-a-chat pattern, connecting Claude to Telegram with full tool execution. Inspired by [nanoclaw](https://github.com/gavrielc/nanoclaw/), a TypeScript project that does the same thing over WhatsApp, MicroClaw incorporates some of its design ideas while being built from scratch in Rust with a focus on simplicity and additional capabilities.
 
 ## The idea
 

@@ -1,6 +1,6 @@
 # MicroClaw
 
-MicroClaw is a Rust Telegram bot that connects Claude AI to Telegram with agentic tool execution, web search, scheduled tasks, and persistent memory. Rewrite of [nanoclaw](https://github.com/gavrielc/nanoclaw/) (TypeScript/WhatsApp).
+MicroClaw is a Rust Telegram bot that connects Claude AI to Telegram with agentic tool execution, web search, scheduled tasks, and persistent memory. Inspired by [nanoclaw](https://github.com/gavrielc/nanoclaw/) (TypeScript/WhatsApp), incorporating some of its design ideas.
 
 ## Tech stack
 
