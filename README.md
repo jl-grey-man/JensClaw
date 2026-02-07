@@ -193,6 +193,14 @@ cargo build --release
 cp target/release/microclaw /usr/local/bin/
 ```
 
+## Release
+
+Publish both installer mode (GitHub Release asset used by `install.sh`) and Homebrew mode with one command:
+
+```sh
+./deploy.sh
+```
+
 ## Setup
 
 > **New:** MicroClaw now includes an interactive setup wizard (`microclaw setup`) and will auto-launch it on first `start` when required config is missing.

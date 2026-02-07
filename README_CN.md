@@ -192,6 +192,14 @@ cargo build --release
 cp target/release/microclaw /usr/local/bin/
 ```
 
+## 发布
+
+一条命令同时发布安装脚本模式（GitHub Release 资产）和 Homebrew 模式：
+
+```sh
+./deploy.sh
+```
+
 ## 配置
 
 > **新功能：** 现在支持交互式配置向导（`microclaw setup`），并且在 `start` 时若缺少必需配置会自动进入向导。
