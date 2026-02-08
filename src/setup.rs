@@ -39,7 +39,7 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         label: "OpenAI",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.openai.com/v1",
-        models: &["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4o"],
+        models: &["gpt-5.2", "gpt-5", "gpt-5-mini"],
     },
     ProviderPreset {
         id: "openrouter",
@@ -48,8 +48,8 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         default_base_url: "https://openrouter.ai/api/v1",
         models: &[
             "openrouter/auto",
-            "anthropic/claude-sonnet-4",
-            "openai/gpt-5-mini",
+            "anthropic/claude-sonnet-4.5",
+            "openai/gpt-5.2",
         ],
     },
     ProviderPreset {
@@ -57,7 +57,7 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         label: "Anthropic",
         protocol: ProviderProtocol::Anthropic,
         default_base_url: "",
-        models: &["claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+        models: &["claude-sonnet-4-5-20250929", "claude-opus-4-6-20260205"],
     },
     ProviderPreset {
         id: "google",
@@ -71,7 +71,7 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         label: "Alibaba Cloud (Qwen / DashScope)",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        models: &["qwen-max-latest", "qwen-plus-latest"],
+        models: &["qwen3-max", "qwen-max-latest"],
     },
     ProviderPreset {
         id: "deepseek",
@@ -85,7 +85,7 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         label: "Moonshot AI (Kimi)",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.moonshot.cn/v1",
-        models: &["kimi-k2-0711-preview", "moonshot-v1-8k"],
+        models: &["kimi-k2.5", "kimi-k2"],
     },
     ProviderPreset {
         id: "mistral",
@@ -100,49 +100,49 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url:
             "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT",
-        models: &["gpt-4o", "gpt-4.1"],
+        models: &["gpt-5.2", "gpt-5"],
     },
     ProviderPreset {
         id: "bedrock",
         label: "Amazon AWS Bedrock",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://bedrock-runtime.YOUR-REGION.amazonaws.com/openai/v1",
-        models: &["anthropic.claude-3-5-sonnet-20241022-v2:0"],
+        models: &["anthropic.claude-opus-4-6-v1", "anthropic.claude-sonnet-4-5-v2"],
     },
     ProviderPreset {
         id: "zhipu",
         label: "Zhipu AI (GLM / Z.AI)",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://open.bigmodel.cn/api/paas/v4",
-        models: &["glm-4-plus", "glm-4.5"],
+        models: &["glm-4.7", "glm-4.7-flash"],
     },
     ProviderPreset {
         id: "minimax",
         label: "MiniMax",
         protocol: ProviderProtocol::OpenAiCompat,
-        default_base_url: "https://api.minimax.chat/v1",
-        models: &["minimax-text-01", "abab6.5s-chat"],
+        default_base_url: "https://api.minimax.io/v1",
+        models: &["MiniMax-M2.1"],
     },
     ProviderPreset {
         id: "cohere",
         label: "Cohere",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.cohere.ai/compatibility/v1",
-        models: &["command-r-plus-08-2024", "command-r7b-12-2024"],
+        models: &["command-a-03-2025", "command-r-plus-08-2024"],
     },
     ProviderPreset {
         id: "tencent",
         label: "Tencent AI Lab",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.hunyuan.cloud.tencent.com/v1",
-        models: &["hunyuan-turbos-latest", "hunyuan-large"],
+        models: &["hunyuan-t1-latest", "hunyuan-turbos-latest"],
     },
     ProviderPreset {
         id: "xai",
         label: "xAI",
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.x.ai/v1",
-        models: &["grok-3-beta", "grok-3-mini-beta"],
+        models: &["grok-4", "grok-3"],
     },
     ProviderPreset {
         id: "huggingface",
@@ -150,8 +150,8 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://router.huggingface.co/v1",
         models: &[
+            "Qwen/Qwen3-Coder-Next",
             "meta-llama/Llama-3.3-70B-Instruct",
-            "Qwen/Qwen3-32B-Instruct",
         ],
     },
     ProviderPreset {
@@ -160,8 +160,8 @@ const PROVIDER_PRESETS: &[ProviderPreset] = &[
         protocol: ProviderProtocol::OpenAiCompat,
         default_base_url: "https://api.together.xyz/v1",
         models: &[
-            "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
             "deepseek-ai/DeepSeek-V3",
+            "meta-llama/Llama-3.3-70B-Instruct-Turbo",
         ],
     },
     ProviderPreset {
@@ -188,7 +188,7 @@ fn provider_protocol(provider: &str) -> ProviderProtocol {
 fn default_model_for_provider(provider: &str) -> &'static str {
     find_provider_preset(provider)
         .and_then(|p| p.models.first().copied())
-        .unwrap_or("gpt-4o")
+        .unwrap_or("gpt-5.2")
 }
 
 fn provider_display(provider: &str) -> String {

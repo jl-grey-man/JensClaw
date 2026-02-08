@@ -156,8 +156,8 @@ impl Config {
         // Apply provider-specific default model if empty
         if self.model.is_empty() {
             self.model = match self.llm_provider.as_str() {
-                "anthropic" => "claude-sonnet-4-20250514".into(),
-                _ => "gpt-4o".into(),
+                "anthropic" => "claude-sonnet-4-5-20250929".into(),
+                _ => "gpt-5.2".into(),
             };
         }
 
@@ -206,7 +206,7 @@ mod tests {
             bot_username: "bot".into(),
             llm_provider: "anthropic".into(),
             api_key: "key".into(),
-            model: "claude-sonnet-4-20250514".into(),
+            model: "claude-sonnet-4-5-20250929".into(),
             llm_base_url: None,
             max_tokens: 8192,
             max_tool_iterations: 25,
@@ -253,7 +253,7 @@ mod tests {
         config.timezone = "US/Eastern".into();
         config.allowed_groups = vec![123, 456];
         config.control_chat_ids = vec![999];
-        assert_eq!(config.model, "claude-sonnet-4-20250514");
+        assert_eq!(config.model, "claude-sonnet-4-5-20250929");
         assert_eq!(config.data_dir, "./microclaw.data");
         assert_eq!(config.openai_api_key.as_deref(), Some("sk-test"));
         assert_eq!(config.timezone, "US/Eastern");
@@ -289,7 +289,7 @@ mod tests {
         let mut config: Config = serde_yaml::from_str(yaml).unwrap();
         config.post_deserialize().unwrap();
         assert_eq!(config.llm_provider, "anthropic");
-        assert_eq!(config.model, "claude-sonnet-4-20250514");
+        assert_eq!(config.model, "claude-sonnet-4-5-20250929");
     }
 
     #[test]
@@ -354,7 +354,7 @@ mod tests {
         let yaml = "telegram_bot_token: tok\nbot_username: bot\napi_key: key\nllm_provider: openai\n";
         let mut config: Config = serde_yaml::from_str(yaml).unwrap();
         config.post_deserialize().unwrap();
-        assert_eq!(config.model, "gpt-4o");
+        assert_eq!(config.model, "gpt-5.2");
     }
 
     #[test]
@@ -371,7 +371,7 @@ mod tests {
         let mut config: Config = serde_yaml::from_str(yaml).unwrap();
         config.post_deserialize().unwrap();
         assert_eq!(config.llm_provider, "anthropic");
-        assert_eq!(config.model, "claude-sonnet-4-20250514");
+        assert_eq!(config.model, "claude-sonnet-4-5-20250929");
     }
 
     #[test]

@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_messages_request_serialization() {
         let req = MessagesRequest {
-            model: "claude-sonnet-4-20250514".into(),
+            model: "claude-sonnet-4-5-20250929".into(),
             max_tokens: 4096,
             system: "You are helpful.".into(),
             messages: vec![Message {
@@ -221,7 +221,7 @@ mod tests {
             tools: None,
         };
         let json = serde_json::to_value(&req).unwrap();
-        assert_eq!(json["model"], "claude-sonnet-4-20250514");
+        assert_eq!(json["model"], "claude-sonnet-4-5-20250929");
         assert_eq!(json["max_tokens"], 4096);
         assert!(json.get("tools").is_none()); // skip_serializing_if None
     }
