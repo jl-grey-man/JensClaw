@@ -18,7 +18,7 @@ model: ""
 # Max tokens per response
 max_tokens: 8192
 # Max tool loop iterations per message
-max_tool_iterations: 25
+max_tool_iterations: 100
 # Chat history context size
 max_history_messages: 50
 # Data root directory:

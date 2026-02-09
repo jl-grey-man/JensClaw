@@ -614,13 +614,20 @@ pub async fn process_with_claude(
         });
     }
 
-    // Save session even at max iterations
+    // Max iterations reached — cap session with an assistant message so the
+    // conversation doesn't end on a tool_result (which would cause
+    // "tool call result does not follow tool call" on the next resume).
+    let max_iter_msg = "I reached the maximum number of tool iterations. Here's what I was working on — please try breaking your request into smaller steps.".to_string();
+    messages.push(Message {
+        role: "assistant".into(),
+        content: MessageContent::Text(max_iter_msg.clone()),
+    });
     strip_images_for_session(&mut messages);
     if let Ok(json) = serde_json::to_string(&messages) {
         let _ = state.db.save_session(chat_id, &json);
     }
 
-    Ok("I reached the maximum number of tool iterations. Here's what I was working on — please try breaking your request into smaller steps.".into())
+    Ok(max_iter_msg)
 }
 
 /// Load messages from DB history (non-session path).
@@ -838,9 +845,13 @@ fn message_to_text(msg: &Message) -> String {
                         } else {
                             "[tool_result]: "
                         };
-                        // Truncate long tool results for summary
+                        // Truncate long tool results for summary (char-boundary safe)
                         let truncated = if content.len() > 200 {
-                            format!("{}...", &content[..200])
+                            let mut end = 200;
+                            while !content.is_char_boundary(end) {
+                                end -= 1;
+                            }
+                            format!("{}...", &content[..end])
                         } else {
                             content.clone()
                         };

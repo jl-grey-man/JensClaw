@@ -40,7 +40,7 @@ Chat message (Telegram / WhatsApp)
                         to model (loop)
 ```
 
-Every message triggers an **agentic loop**: the model can call tools, inspect the results, call more tools, and reason through multi-step tasks before responding. Up to 25 iterations per request by default.
+Every message triggers an **agentic loop**: the model can call tools, inspect the results, call more tools, and reason through multi-step tasks before responding. Up to 100 iterations per request by default.
 
 ## Blog post
 
@@ -323,7 +323,7 @@ All configuration is via `microclaw.config.yaml`:
 | `llm_base_url` | No | provider preset default | Custom provider base URL |
 | `data_dir` | No | `./microclaw.data` | Data root (`runtime` data in `data_dir/runtime`, skills in `data_dir/skills`) |
 | `max_tokens` | No | `8192` | Max tokens per model response |
-| `max_tool_iterations` | No | `25` | Max tool-use loop iterations per message |
+| `max_tool_iterations` | No | `100` | Max tool-use loop iterations per message |
 | `max_history_messages` | No | `50` | Number of recent messages sent as context |
 | `control_chat_ids` | No | `[]` | Chat IDs that can perform cross-chat actions (send_message/schedule/export/memory global/todo) |
 | `max_session_messages` | No | `40` | Message count threshold that triggers context compaction |

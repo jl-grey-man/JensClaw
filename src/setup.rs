@@ -332,9 +332,8 @@ impl SetupApp {
         }
     }
 
-    /// Load existing config values from microclaw.config.yaml/.yml, or .env (legacy).
+    /// Load existing config values from microclaw.config.yaml/.yml.
     fn load_existing_config() -> HashMap<String, String> {
-        // Try microclaw config name first.
         let yaml_path = if Path::new("./microclaw.config.yaml").exists() {
             Some("./microclaw.config.yaml")
         } else if Path::new("./microclaw.config.yml").exists() {
@@ -362,27 +361,6 @@ impl SetupApp {
                     return map;
                 }
             }
-        }
-
-        // Fall back to .env
-        if let Ok(content) = fs::read_to_string(".env") {
-            let mut map = HashMap::new();
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') {
-                    continue;
-                }
-                if let Some((key, value)) = trimmed.split_once('=') {
-                    map.insert(key.trim().to_string(), value.trim().to_string());
-                }
-            }
-            // Normalize API key
-            if !map.contains_key("LLM_API_KEY") {
-                if let Some(v) = map.get("ANTHROPIC_API_KEY") {
-                    map.insert("LLM_API_KEY".into(), v.clone());
-                }
-            }
-            return map;
         }
 
         HashMap::new()

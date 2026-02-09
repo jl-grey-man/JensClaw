@@ -193,7 +193,7 @@ mod tests {
             model: "claude-test".into(),
             llm_base_url: None,
             max_tokens: 4096,
-            max_tool_iterations: 25,
+            max_tool_iterations: 100,
             max_history_messages: 50,
             data_dir: "/tmp".into(),
             openai_api_key: None,

@@ -95,12 +95,12 @@ Telegram message
     Build system prompt (bot identity + memory context + chat_id)
        |
        v
-    Compact if needed (messages > MAX_SESSION_MESSAGES):
+    Compact if needed (messages > max_session_messages):
        - Summarize old messages via Claude
        - Keep recent messages verbatim
        |
        v
-    Agentic loop (up to MAX_TOOL_ITERATIONS):
+    Agentic loop (up to max_tool_iterations):
        1. Call Claude API with messages + tool definitions
        2. If stop_reason == "tool_use" -> execute tools -> append results -> loop
        3. If stop_reason == "end_turn" -> extract text -> return
@@ -300,12 +300,12 @@ sqlite> SELECT * FROM chats;
 | Task | How |
 |------|-----|
 | Change the model | Set `model: "claude-sonnet-4-20250514"` in `microclaw.config.yaml` |
-| Increase context window | Set `MAX_HISTORY_MESSAGES=100` (uses more tokens) |
-| Increase tool iterations | Set `MAX_TOOL_ITERATIONS=50` |
+| Increase context window | Set `max_history_messages: 100` in `microclaw.config.yaml` (uses more tokens) |
+| Increase tool iterations | Set `max_tool_iterations: 200` in `microclaw.config.yaml` |
 | Reset memory | Delete files under `microclaw.data/runtime/groups/` |
 | Reset all data | Delete the `microclaw.data/` directory |
-| Tune compaction threshold | Set `MAX_SESSION_MESSAGES=60` (higher = more context before compaction) |
-| Keep more recent messages | Set `COMPACT_KEEP_RECENT=30` (more recent messages kept verbatim) |
+| Tune compaction threshold | Set `max_session_messages: 60` in `microclaw.config.yaml` (higher = more context before compaction) |
+| Keep more recent messages | Set `compact_keep_recent: 30` in `microclaw.config.yaml` (more recent messages kept verbatim) |
 | Reset a chat session | Send `/reset` in the chat, or: `sqlite3 microclaw.data/runtime/microclaw.db "DELETE FROM sessions WHERE chat_id=XXXX;"` |
 | Cancel all scheduled tasks | `sqlite3 microclaw.data/runtime/microclaw.db "UPDATE scheduled_tasks SET status='cancelled' WHERE status='active';"` |
 

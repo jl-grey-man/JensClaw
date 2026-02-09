@@ -20,7 +20,7 @@ MicroClaw is a Rust Telegram bot that connects Claude AI to Telegram chats with 
 ```
 src/
     main.rs          -- Entry point. Initializes config, DB, memory manager, starts bot.
-    config.rs        -- Loads all settings from environment variables / .env file.
+    config.rs        -- Loads all settings from microclaw.config.yaml.
     error.rs         -- MicroClawError enum (thiserror). All error variants for the app.
     telegram.rs      -- Telegram message handler. Contains the agentic tool-use loop
                         (process_with_claude), session resume (load/save full message
@@ -72,11 +72,11 @@ The core loop:
      - Groups: all messages since last bot response (`get_messages_since_last_bot_response`)
 2. Build system prompt with memory context and chat_id
 3. If `override_prompt` is set (from scheduler), append as user message
-4. Compact if messages exceed `MAX_SESSION_MESSAGES` (summarize old messages via Claude, keep recent verbatim)
+4. Compact if messages exceed `max_session_messages` (summarize old messages via Claude, keep recent verbatim)
 5. Call Claude API with tool definitions
 6. If `stop_reason == "tool_use"` -> execute tools -> append results -> loop back to step 5
 7. If `stop_reason == "end_turn"` -> extract text -> strip image base64 -> save session -> return
-8. Loop up to `MAX_TOOL_ITERATIONS` times
+8. Loop up to `max_tool_iterations` times
 
 ### Session resume (`db.rs` sessions table + `telegram.rs`)
 
@@ -84,7 +84,7 @@ Full conversation state (including tool_use and tool_result blocks) is serialize
 
 ### Context compaction (`telegram.rs:compact_messages`)
 
-When session message count exceeds `MAX_SESSION_MESSAGES` (default 40):
+When session message count exceeds `max_session_messages` (default 40):
 1. Split messages into old (to summarize) and recent (to keep, default 20)
 2. Call Claude with a summarization prompt (no tools)
 3. Replace old messages with `[Conversation Summary]` + assistant ack
@@ -166,11 +166,11 @@ Direct HTTP to `https://api.anthropic.com/v1/messages` with:
 ```sh
 cargo build              # dev build
 cargo build --release    # release build
-cargo run -- start       # run (requires .env)
+cargo run -- start       # run (requires microclaw.config.yaml)
 cargo run -- help        # CLI help
 ```
 
-Requires a `.env` file with `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, and `BOT_USERNAME`.
+Requires a `microclaw.config.yaml` with `telegram_bot_token`, `api_key`, and `bot_username`.
 
 ## Adding a new tool
 
@@ -182,12 +182,12 @@ Requires a `.env` file with `TELEGRAM_BOT_TOKEN`, `ANTHROPIC_API_KEY`, and `BOT_
 
 ## Common tasks
 
-- **Change the model:** set `CLAUDE_MODEL` env var
-- **Increase context:** set `MAX_HISTORY_MESSAGES` higher (costs more tokens)
-- **Increase tool iterations:** set `MAX_TOOL_ITERATIONS` higher
+- **Change the model:** set `model` in `microclaw.config.yaml`
+- **Increase context:** set `max_history_messages` higher in `microclaw.config.yaml` (costs more tokens)
+- **Increase tool iterations:** set `max_tool_iterations` higher in `microclaw.config.yaml` (default: 100)
 - **Debug logging:** run with `RUST_LOG=debug cargo run -- start`
-- **Reset memory:** delete files under `data/groups/`
-- **Reset all data:** delete the `data/` directory
-- **Cancel all tasks:** `sqlite3 data/microclaw.db "UPDATE scheduled_tasks SET status='cancelled' WHERE status='active';"`
-- **Tune compaction:** set `MAX_SESSION_MESSAGES` (default 40) and `COMPACT_KEEP_RECENT` (default 20)
-- **Reset a chat session:** send `/reset` in chat, or `sqlite3 data/microclaw.db "DELETE FROM sessions WHERE chat_id=XXXX;"`
+- **Reset memory:** delete files under `microclaw.data/runtime/groups/`
+- **Reset all data:** delete the `microclaw.data/` directory
+- **Cancel all tasks:** `sqlite3 microclaw.data/runtime/microclaw.db "UPDATE scheduled_tasks SET status='cancelled' WHERE status='active';"`
+- **Tune compaction:** set `max_session_messages` (default 40) and `compact_keep_recent` (default 20) in `microclaw.config.yaml`
+- **Reset a chat session:** send `/reset` in chat, or `sqlite3 microclaw.data/runtime/microclaw.db "DELETE FROM sessions WHERE chat_id=XXXX;"`

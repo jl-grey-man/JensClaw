@@ -39,7 +39,7 @@ Telegram 消息
                    Claude（循环）
 ```
 
-每条消息触发一个 **智能体循环**：Claude 可以调用工具、检查结果、再调用更多工具，经过多步推理后再回复。默认每次请求最多 25 次迭代。
+每条消息触发一个 **智能体循环**：Claude 可以调用工具、检查结果、再调用更多工具，经过多步推理后再回复。默认每次请求最多 100 次迭代。
 
 ## 博客文章
 
@@ -321,7 +321,7 @@ microclaw gateway uninstall
 | `llm_base_url` | 否 | provider 预设默认值 | 自定义 API 基础地址 |
 | `data_dir` | 否 | `./microclaw.data` | 数据根目录（运行时数据在 `data_dir/runtime`，技能在 `data_dir/skills`） |
 | `max_tokens` | 否 | `8192` | 每次 Claude 回复的最大 token |
-| `max_tool_iterations` | 否 | `25` | 每条消息的最大工具循环次数 |
+| `max_tool_iterations` | 否 | `100` | 每条消息的最大工具循环次数 |
 | `max_history_messages` | 否 | `50` | 作为上下文发送的历史消息数 |
 | `control_chat_ids` | 否 | `[]` | 可跨聊天执行操作的 chat_id 列表（send_message/定时/导出/全局记忆/todo） |
 | `max_session_messages` | 否 | `40` | 触发上下文压缩的消息数阈值 |

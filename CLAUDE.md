@@ -9,7 +9,7 @@ Rust 2021, Tokio, teloxide 0.17, serenity 0.12, Anthropic Messages API (direct H
 ## Project layout
 
 - `src/main.rs` -- entry point, CLI
-- `src/config.rs` -- YAML config loading (with .env backward compat)
+- `src/config.rs` -- YAML config loading
 - `src/error.rs` -- error types (thiserror)
 - `src/telegram.rs` -- message handler, agentic loop, session resume, context compaction, typing indicator, catch-up
 - `src/discord.rs` -- Discord bot (serenity gateway, reuses process_with_claude)
@@ -32,9 +32,9 @@ Rust 2021, Tokio, teloxide 0.17, serenity 0.12, Anthropic Messages API (direct H
 
 ## Key patterns
 
-- **Agentic loop** in `telegram.rs:process_with_claude`: call Claude -> if tool_use -> execute -> loop (up to MAX_TOOL_ITERATIONS)
+- **Agentic loop** in `telegram.rs:process_with_claude`: call Claude -> if tool_use -> execute -> loop (up to `max_tool_iterations`)
 - **Session resume**: full `Vec<Message>` (including tool_use/tool_result blocks) persisted in `sessions` table; on next invocation, loaded and appended with new user messages. `/reset` clears session.
-- **Context compaction**: when session messages exceed `MAX_SESSION_MESSAGES`, older messages are summarized via Claude and replaced with a compact summary + recent messages kept verbatim
+- **Context compaction**: when session messages exceed `max_session_messages`, older messages are summarized via Claude and replaced with a compact summary + recent messages kept verbatim
 - **Sub-agent**: `sub_agent` tool spawns a fresh agentic loop with 9 restricted tools (no send_message, write_memory, schedule, or recursive sub_agent)
 - **Tool trait**: `name()`, `definition()` (JSON Schema), `execute(serde_json::Value) -> ToolResult`
 - **Shared state**: `AppState` in `Arc`, tools hold `Bot` / `Arc<Database>` as needed
@@ -55,7 +55,7 @@ cargo run -- help
 
 ## Configuration
 
-MicroClaw uses `config.yaml` (or `config.yml`) for configuration. Override the path with `MICROCLAW_CONFIG` env var. See `config.example.yaml` for all available fields. Legacy `.env` files are still supported with a deprecation warning.
+MicroClaw uses `microclaw.config.yaml` (or `.yml`) for configuration. Override the path with `MICROCLAW_CONFIG` env var. See `microclaw.config.example.yaml` for all available fields.
 
 ## Adding a tool
 

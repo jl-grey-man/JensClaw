@@ -21,7 +21,7 @@ fn default_max_tokens() -> u32 {
     8192
 }
 fn default_max_tool_iterations() -> usize {
-    25
+    100
 }
 fn default_max_history_messages() -> usize {
     50
@@ -117,7 +117,7 @@ impl Config {
             .to_string()
     }
 
-    /// Load config from YAML file, with fallback to env vars for backward compatibility.
+    /// Load config from YAML file.
     pub fn load() -> Result<Self, MicroClawError> {
         // 1. Check MICROCLAW_CONFIG env var for custom path
         let yaml_path = if let Ok(custom) = std::env::var("MICROCLAW_CONFIG") {
@@ -211,7 +211,7 @@ mod tests {
             model: "claude-sonnet-4-5-20250929".into(),
             llm_base_url: None,
             max_tokens: 8192,
-            max_tool_iterations: 25,
+            max_tool_iterations: 100,
             max_history_messages: 50,
             data_dir: "./microclaw.data".into(),
             openai_api_key: None,
@@ -236,7 +236,7 @@ mod tests {
         let cloned = config.clone();
         assert_eq!(cloned.telegram_bot_token, "tok");
         assert_eq!(cloned.max_tokens, 8192);
-        assert_eq!(cloned.max_tool_iterations, 25);
+        assert_eq!(cloned.max_tool_iterations, 100);
         assert_eq!(cloned.max_history_messages, 50);
         assert!(cloned.openai_api_key.is_none());
         assert_eq!(cloned.timezone, "UTC");
@@ -280,7 +280,7 @@ mod tests {
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.llm_provider, "anthropic");
         assert_eq!(config.max_tokens, 8192);
-        assert_eq!(config.max_tool_iterations, 25);
+        assert_eq!(config.max_tool_iterations, 100);
         assert_eq!(config.data_dir, "./microclaw.data");
         assert_eq!(config.timezone, "UTC");
     }

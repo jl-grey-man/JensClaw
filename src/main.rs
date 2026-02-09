@@ -64,7 +64,7 @@ CONFIG FILE (microclaw.config.yaml):
     Runtime:
       data_dir               Data root (runtime in ./microclaw.data/runtime, skills in ./microclaw.data/skills)
       max_tokens             Max tokens per response (default: 8192)
-      max_tool_iterations    Max tool loop iterations (default: 25)
+      max_tool_iterations    Max tool loop iterations (default: 100)
       max_history_messages   Chat history context size (default: 50)
       openai_api_key         OpenAI key for voice transcription (optional)
       timezone               IANA timezone for scheduling (default: UTC)
