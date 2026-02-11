@@ -161,6 +161,13 @@ async fn handle_message(
         return Ok(());
     }
 
+    // Handle HELP command — show comprehensive help
+    if text.trim().eq_ignore_ascii_case("HELP") || text.trim() == "/help" {
+        let help_text = get_help_text();
+        let _ = bot.send_message(msg.chat.id, help_text).await;
+        return Ok(());
+    }
+
     if let Some(photos) = msg.photo() {
         // Pick the largest photo (last in the array)
         if let Some(photo) = photos.last() {
@@ -1672,4 +1679,79 @@ mod tests {
     fn test_guess_image_media_type_empty() {
         assert_eq!(guess_image_media_type(&[]), "image/jpeg");
     }
+}
+
+/// Generate comprehensive help text for the HELP command
+fn get_help_text() -> String {
+    format!(r#"🎯 **SANDY - Your ADHD Coach** 
+
+**Quick Commands:**
+• HELP - Show this help message
+• /reset - Clear current conversation session
+• /skills - List available skills
+• /archive - Save conversation to file
+• /review - Trigger daily self-review (if enabled)
+
+**What Sandy Can Do:**
+
+📝 **Task & Goal Management**
+• Create goals: "My goal is to exercise 3x per week"
+• Track projects: "This is part of my website redesign"
+• Manage tasks: "I need to finish the report by Friday"
+• Set reminders: "Remind me to call Mom tomorrow at 3pm"
+• View progress: "What are my active goals?"
+
+🧠 **ADHD Pattern Learning**
+• Record observations: "I always struggle with morning tasks"
+• Learn your patterns: Focus, Energy, Procrastination, Time Blindness
+• Get personalized suggestions based on what she's learned
+• Review patterns: "What patterns have you noticed about me?"
+
+📄 **File Management** (/mnt/storage - shared with Mac)
+• Create notes: "Create a note about my project ideas"
+• Write code: "Write a Python script to organize files"
+• Build websites: "Create a simple HTML page"
+• Manage lists: "Make a todo list for today"
+• Access files: All files in /mnt/storage appear on your Mac
+
+🔍 **Web & Search**
+• Search web: "Search for latest ADHD research 2024"
+• Fetch pages: "Get info from https://example.com"
+• Find information: "What's the weather in Stockholm?"
+
+⏰ **Smart Reminders**
+• Natural language: "Remind me in 2 hours" or "Monday morning"
+• Recurring: "Remind me every day at 9am"
+• Smart parsing: "tomorrow at 3pm", "in 5 minutes"
+
+📊 **Daily Self-Review** (Automatic at 3 AM)
+• Analyzes how well Sandy supported you today
+• Suggests improvements to better help with your ADHD
+• You approve every change: Sandy never modifies herself without your "yes"
+• Commands: "Run self-review", "Show my impact report"
+
+💻 **System Commands**
+• Execute commands: "Run ls -la on the Pi"
+• Check status: "Is Sandy running?"
+• File operations: List, read, write files
+
+**Communication Tips:**
+• Sandy understands natural language - no rigid commands needed
+• She learns your ADHD patterns over time
+• She validates struggles without toxic positivity
+• She breaks overwhelming tasks into micro-steps
+• She celebrates wins briefly and genuinely
+
+**Web Dashboard:**
+Access at: http://100.72.180.20:3000 (via Tailscale)
+• View active goals, projects, tasks
+• See real-time activity log
+• Track your progress visually
+
+**Need Help?**
+Just ask: "How do I..." or "Can you help me with..."
+Sandy will guide you through any feature!
+
+---
+Built with 💚 for ADHD minds"#)
 }
