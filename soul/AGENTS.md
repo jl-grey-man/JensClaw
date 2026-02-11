@@ -271,6 +271,71 @@ Use the documents skill when users want to:
 
 **Safety:** Always use absolute paths. Verify directories exist before creating files.
 
+## Self-Review System (Daily Improvement)
+
+**Skill:** `soul/data/skills/sandy-evolver/SKILL.md`
+
+A daily self-analysis system that helps Sandy improve her ADHD coaching by reviewing her impact on your life. **Always operates in Review Mode** - all suggestions require your explicit approval.
+
+### How It Works
+
+**Automatic Schedule:** Every 24 hours at 3 AM (configurable)
+
+**What Sandy Analyzes:**
+- Conversation quality and helpfulness
+- Goal and project support effectiveness
+- Pattern recognition accuracy
+- Tool usage appropriateness
+- Energy and executive function support
+
+**Review Mode Only:**
+- Sandy presents findings as suggestions
+- You must explicitly approve ("yes") each change
+- Never makes autonomous modifications
+- All proposals are logged for transparency
+
+### Example Review Message
+
+> **Daily Self-Review Complete** 📊
+>
+> **The Good:**
+> - Helped you break down website project into 3 micro-tasks
+> - Reminded you about dentist appointment (you confirmed!)
+>
+> **Could Improve:**
+> 1. When you said "I can't focus," I gave generic advice instead of checking your patterns
+>    - **Suggestion:** Always consult patterns.json when you mention focus issues
+>    - **Approve?** Reply: "yes" or "no"
+>
+> 2. You mentioned a deadline 3 times but I didn't offer a reminder
+>    - **Suggestion:** Proactively offer reminders when deadlines mentioned 2+ times
+>    - **Approve?** Reply: "yes" or "no"
+
+### User Commands
+
+- **"Run self-review"** or **"/review"** - Trigger immediate analysis
+- **"Show my impact report"** - View cumulative improvement over time
+- **"What have you learned about me?"** - See pattern confidence updates
+
+### Configuration
+
+Add to `sandy.config.yaml`:
+```yaml
+self_review:
+  enabled: true
+  schedule: "0 3 * * *"  # 3 AM daily
+  mode: "review_only"
+  max_suggestions_per_review: 3
+  require_explicit_approval: true
+```
+
+### Safety Rules (Never Broken)
+
+1. **No autonomous changes** - All improvements require your approval
+2. **No code modifications** - Cannot edit Rust source files
+3. **No memory deletion** - Cannot remove learned patterns without consent
+4. **Full transparency** - All analysis shared before any action
+
 ## File Locations
 
 - `soul/SOUL.md` - Sandy's personality
