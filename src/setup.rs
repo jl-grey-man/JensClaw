@@ -349,9 +349,15 @@ impl SetupApp {
         }
     }
 
-    /// Load existing config values from microclaw.config.yaml/.yml.
+    /// Load existing config values from sandy.config.yaml/.yml.
     fn load_existing_config() -> HashMap<String, String> {
-        let yaml_path = if Path::new("./microclaw.config.yaml").exists() {
+        let yaml_path = if Path::new("./sandy.config.yaml").exists() {
+            Some("./sandy.config.yaml")
+        } else if Path::new("./sandy.config.yml").exists() {
+            Some("./sandy.config.yml")
+        } else if Path::new("./config/sandy.config.yaml").exists() {
+            Some("./config/sandy.config.yaml")
+        } else if Path::new("./microclaw.config.yaml").exists() {
             Some("./microclaw.config.yaml")
         } else if Path::new("./microclaw.config.yml").exists() {
             Some("./microclaw.config.yml")
@@ -1140,13 +1146,13 @@ fn try_save(app: &mut SetupApp) {
         .and_then(|_| app.validate_online())
         .and_then(|checks| {
             let values = app.to_env_map();
-            let backup = save_config_yaml(Path::new("microclaw.config.yaml"), &values)?;
+            let backup = save_config_yaml(Path::new("sandy.config.yaml"), &values)?;
             app.backup_path = backup;
             app.completion_summary = checks;
             Ok(())
         }) {
         Ok(_) => {
-            app.status = "Saved microclaw.config.yaml".into();
+            app.status = "Saved sandy.config.yaml".into();
             app.completed = true;
         }
         Err(e) => app.status = format!("Cannot save: {e}"),

@@ -160,7 +160,14 @@ impl Config {
                     "MICROCLAW_CONFIG points to non-existent file: {custom}"
                 )));
             }
+        } else if std::path::Path::new("./sandy.config.yaml").exists() {
+            Some("./sandy.config.yaml".into())
+        } else if std::path::Path::new("./sandy.config.yml").exists() {
+            Some("./sandy.config.yml".into())
+        } else if std::path::Path::new("./config/sandy.config.yaml").exists() {
+            Some("./config/sandy.config.yaml".into())
         } else if std::path::Path::new("./microclaw.config.yaml").exists() {
+            // Fallback to legacy filename for backwards compatibility
             Some("./microclaw.config.yaml".into())
         } else if std::path::Path::new("./microclaw.config.yml").exists() {
             Some("./microclaw.config.yml".into())
@@ -179,7 +186,7 @@ impl Config {
 
         // No config file found at all
         Err(MicroClawError::Config(
-            "No microclaw.config.yaml found. Run `microclaw config` to create one.".into(),
+            "No sandy.config.yaml found. Run `microclaw config` to create one.".into(),
         ))
     }
 

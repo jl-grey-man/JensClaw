@@ -154,12 +154,20 @@ fn resolve_config_path() -> PathBuf {
     if let Ok(custom) = std::env::var("MICROCLAW_CONFIG") {
         return PathBuf::from(custom);
     }
-    if Path::new("./microclaw.config.yaml").exists() {
+    // Check for sandy config first (new standard), then fallback to microclaw (legacy)
+    if Path::new("./sandy.config.yaml").exists() {
+        PathBuf::from("./sandy.config.yaml")
+    } else if Path::new("./sandy.config.yml").exists() {
+        PathBuf::from("./sandy.config.yml")
+    } else if Path::new("./config/sandy.config.yaml").exists() {
+        PathBuf::from("./config/sandy.config.yaml")
+    } else if Path::new("./microclaw.config.yaml").exists() {
         PathBuf::from("./microclaw.config.yaml")
     } else if Path::new("./microclaw.config.yml").exists() {
         PathBuf::from("./microclaw.config.yml")
     } else {
-        PathBuf::from("./microclaw.config.yaml")
+        // Default to sandy.config.yaml for new installations
+        PathBuf::from("./sandy.config.yaml")
     }
 }
 

@@ -43,7 +43,7 @@ FEATURES:
 SETUP:
     1. Run: microclaw config
        (or run microclaw start and follow auto-config on first launch)
-    2. Edit microclaw.config.yaml with required values:
+    2. Edit sandy.config.yaml with required values:
 
        telegram_bot_token    Bot token from @BotFather
        api_key               LLM API key
@@ -51,10 +51,10 @@ SETUP:
 
     3. Run: microclaw start
 
-CONFIG FILE (microclaw.config.yaml):
-    MicroClaw reads configuration from microclaw.config.yaml (or microclaw.config.yml).
+CONFIG FILE (sandy.config.yaml):
+    Sandy reads configuration from sandy.config.yaml (or sandy.config.yml).
     Override the path with MICROCLAW_CONFIG env var.
-    See microclaw.config.example.yaml for all available fields.
+    See sandy.config.example.yaml for all available fields.
 
     Core fields:
       telegram_bot_token     Telegram bot token from @BotFather
@@ -186,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
         Some("setup") => {
             let saved = setup::run_setup_wizard()?;
             if saved {
-                println!("Setup saved to microclaw.config.yaml");
+                println!("Setup saved to sandy.config.yaml");
             } else {
                 println!("Setup canceled");
             }
