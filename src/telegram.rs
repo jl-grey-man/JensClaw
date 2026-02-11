@@ -1724,6 +1724,19 @@ fn get_help_text() -> String {
 • Recurring: "Remind me every day at 9am"
 • Smart parsing: "tomorrow at 3pm", "in 5 minutes"
 
+🛠️ **Skill Builder** (Create Custom Workflows)
+• Create skills: "Create a skill for my morning routine"
+• Use skills: "Use my research-assistant skill"
+• Build workflows: Medication tracking, focus techniques, file organization
+• Skills stored in: soul/data/skills/custom/
+
+🤖 **Agent Delegation** (Background Tasks)
+• Spawn agents: "Research this topic for me" (runs in background)
+• Specialized agents: Research, Code, File organization
+• Toggle reports: "Enable reports from my research agent"
+• Check status: "List all agents" or "Check agent research-1"
+• Keep chatting while agents work!
+
 📊 **Daily Self-Review** (Automatic at 3 AM)
 • Analyzes how well Sandy supported you today
 • Suggests improvements to better help with your ADHD

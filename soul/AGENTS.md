@@ -336,6 +336,146 @@ self_review:
 3. **No memory deletion** - Cannot remove learned patterns without consent
 4. **Full transparency** - All analysis shared before any action
 
+## Skill Builder System
+
+**Skill:** `soul/data/skills/sandy-skill-builder/SKILL.md`
+
+Create custom skills for Sandy - reusable workflows, templates, and procedures stored in `soul/data/skills/custom/`.
+
+### What Are Skills?
+
+Skills are reusable instruction sets that Sandy can load and follow:
+- **Workflows**: Step-by-step procedures (morning routine, medication tracker)
+- **Templates**: How-to guides (research methodology, file organization)
+- **Domain knowledge**: Your specific preferences and needs
+- **Procedures**: Complex multi-step tasks
+
+### Creating Skills
+
+**Tool:** `create_skill`
+
+**Parameters:**
+- `skill_name`: lowercase-with-hyphens (e.g., 'morning-routine')
+- `description`: What it does and when to use it
+- `content`: Full SKILL.md content with instructions
+
+**Example usage:**
+```
+You: "Create a skill for my morning routine"
+Sandy: "What should this skill do?"
+You: [describe your routine]
+Sandy: [creates skill with create_skill tool]
+
+Later: "Use my morning-routine skill"
+→ Sandy loads it and guides you through
+```
+
+### Skill Location
+
+```
+soul/data/skills/custom/
+├── morning-routine/
+│   └── SKILL.md
+├── research-assistant/
+│   └── SKILL.md
+└── file-organizer/
+    └── SKILL.md
+```
+
+### First Skills to Create
+
+1. **research-assistant**: Web research methodology and output format
+2. **file-organizer**: Systematic file organization workflow
+3. **morning-routine**: ADHD-friendly morning startup
+
+### Skill Commands
+
+- **"Create a skill"** - Start skill creation process
+- **"Use my [skill-name] skill"** - Activate skill
+- **"List my skills"** - Show all custom skills
+- **"Delete skill [name]"** - Remove a skill
+
+## Agent Delegation System
+
+**Tools:** `spawn_agent`, `list_agents`, `set_agent_reporting`, `agent_status`
+
+Spawn specialized sub-agents to handle tasks in the background while Sandy continues the main conversation.
+
+### Why Use Agents?
+
+- **Background tasks**: Continue chatting while agent works
+- **Specialization**: Research, coding, file organization
+- **Parallel processing**: Multiple tasks at once
+- **Better focus**: Each agent has specific context
+
+### Agent Types
+
+**Research Agent** (`spawn_agent` with specialty "web research"):
+- Deep web searches
+- Information gathering
+- Analysis and synthesis
+- Reports back with findings
+
+**Code Agent** (`spawn_agent` with specialty "Python scripting"):
+- Write scripts
+- Create automation tools
+- Build web pages
+- Code review and refactoring
+
+**File Agent** (`spawn_agent` with specialty "file organization"):
+- Organize folders
+- Clean up downloads
+- Rename and categorize
+- Create backups
+
+### Toggle Reporting
+
+**You control whether each agent reports directly to you:**
+
+**Enable direct reports:**
+```
+set_agent_reporting {
+  "agent_id": "research-1",
+  "enabled": true
+}
+```
+→ Agent sends progress updates directly to you in Telegram
+
+**Disable direct reports:**
+```
+set_agent_reporting {
+  "agent_id": "research-1",
+  "enabled": false
+}
+```
+→ Agent works silently, Sandy summarizes when complete
+
+**Check status:**
+```
+list_agents → Shows all agents with reporting status
+agent_status {"agent_id": "research-1"} → Detailed status
+```
+
+### Example Usage
+
+```
+You: "Research the best note-taking apps for ADHD"
+Sandy: "I'll spawn a research agent to look into this. You can keep chatting with me while they work."
+[spawn_agent: research-1, web research, reporting: false]
+
+... continue conversation ...
+
+5 minutes later:
+Sandy: "My research agent completed their analysis. They found: Obsidian, Notion, and Roam Research. Based on your 'digital overwhelm' pattern, I'd recommend Obsidian. Want me to help you set it up?"
+```
+
+### Agent Persistence
+
+- **Active during task**: Agent has its own context and memory
+- **Reports on completion**: Either to you (if enabled) or via Sandy
+- **Can be monitored**: Check progress anytime with `agent_status`
+- **Auto-cleanup**: Agents removed after completion (configurable)
+
 ## File Locations
 
 - `soul/SOUL.md` - Sandy's personality

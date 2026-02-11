@@ -1,6 +1,8 @@
 pub mod activate_skill;
+pub mod agent_management;
 pub mod bash;
 pub mod browser;
+pub mod create_skill;
 pub mod edit_file;
 pub mod export_chat;
 pub mod glob;
@@ -168,6 +170,11 @@ impl ToolRegistry {
             Box::new(export_chat::ExportChatTool::new(db, &config.data_dir)),
             Box::new(sub_agent::SubAgentTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
+            Box::new(agent_management::SpawnAgentTool::new()),
+            Box::new(agent_management::ListAgentsTool::new()),
+            Box::new(agent_management::SetAgentReportingTool::new()),
+            Box::new(agent_management::AgentStatusTool::new()),
+            Box::new(create_skill::CreateSkillTool::new(&skills_data_dir)),
             Box::new(todo::TodoReadTool::new(&config.data_dir)),
             Box::new(todo::TodoWriteTool::new(&config.data_dir)),
             // Sandy's pattern learning tools
