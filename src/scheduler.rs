@@ -19,8 +19,18 @@ pub fn spawn_scheduler(state: Arc<AppState>) {
 
 async fn run_due_tasks(state: &Arc<AppState>) {
     let now = Utc::now().to_rfc3339();
+    info!("Scheduler: checking for due tasks at {}", now);
     let tasks = match state.db.get_due_tasks(&now) {
-        Ok(t) => t,
+        Ok(t) => {
+            info!("Scheduler: found {} due tasks", t.len());
+            for task in &t {
+                info!(
+                    "Scheduler: task #{} scheduled for {}, current time {}",
+                    task.id, task.next_run, now
+                );
+            }
+            t
+        }
         Err(e) => {
             error!("Scheduler: failed to query due tasks: {e}");
             return;

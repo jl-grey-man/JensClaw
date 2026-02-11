@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod builtin_skills;
 pub mod claude;
 pub mod config;
@@ -16,4 +17,5 @@ pub mod skills;
 pub mod telegram;
 pub mod tools;
 pub mod transcribe;
+pub mod web;
 pub mod whatsapp;

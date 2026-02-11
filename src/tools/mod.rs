@@ -7,12 +7,15 @@ pub mod glob;
 pub mod grep;
 pub mod mcp;
 pub mod memory;
+pub mod parse_datetime;
 pub mod path_guard;
+pub mod patterns;
 pub mod read_file;
 pub mod schedule;
 pub mod send_message;
 pub mod sub_agent;
 pub mod todo;
+pub mod tracking;
 pub mod web_fetch;
 pub mod web_search;
 pub mod write_file;
@@ -155,6 +158,7 @@ impl ToolRegistry {
             Box::new(schedule::ScheduleTaskTool::new(
                 db.clone(),
                 config.timezone.clone(),
+                config.data_dir.clone(),
             )),
             Box::new(schedule::ListTasksTool::new(db.clone())),
             Box::new(schedule::PauseTaskTool::new(db.clone())),
@@ -166,6 +170,20 @@ impl ToolRegistry {
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
             Box::new(todo::TodoReadTool::new(&config.data_dir)),
             Box::new(todo::TodoWriteTool::new(&config.data_dir)),
+            // Sandy's pattern learning tools
+            Box::new(patterns::ReadPatternsTool::new(&config.data_dir)),
+            Box::new(patterns::AddObservationTool::new(&config.data_dir)),
+            Box::new(patterns::UpdateHypothesisTool::new(&config.data_dir)),
+            Box::new(patterns::CreatePatternTool::new(&config.data_dir)),
+            // Sandy's tracking tools
+            Box::new(tracking::ReadTrackingTool::new(&config.data_dir)),
+            Box::new(tracking::CreateGoalTool::new(&config.data_dir)),
+            Box::new(tracking::CreateProjectTool::new(&config.data_dir)),
+            Box::new(tracking::CreateTaskTool::new(&config.data_dir)),
+            Box::new(tracking::UpdateStatusTool::new(&config.data_dir)),
+            Box::new(tracking::AddNoteTool::new(&config.data_dir)),
+            Box::new(tracking::RemoveNoteTool::new(&config.data_dir)),
+            Box::new(parse_datetime::ParseDateTimeTool::new()),
         ];
         ToolRegistry { tools }
     }

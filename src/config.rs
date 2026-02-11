@@ -44,8 +44,23 @@ fn default_compact_keep_recent() -> usize {
 fn default_whatsapp_webhook_port() -> u16 {
     8080
 }
+fn default_web_port() -> u16 {
+    3000
+}
 fn default_control_chat_ids() -> Vec<i64> {
     Vec::new()
+}
+fn default_soul_file() -> String {
+    "./soul/SOUL.md".into()
+}
+fn default_identity_file() -> String {
+    "./soul/IDENTITY.md".into()
+}
+fn default_agents_file() -> String {
+    "./soul/AGENTS.md".into()
+}
+fn default_memory_file() -> String {
+    "./soul/data/MEMORY.md".into()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -98,6 +113,18 @@ pub struct Config {
     pub discord_allowed_channels: Vec<u64>,
     #[serde(default)]
     pub show_thinking: bool,
+    // Sandy's Web UI port
+    #[serde(default = "default_web_port")]
+    pub web_port: u16,
+    // Sandy's OpenClaw file paths
+    #[serde(default = "default_soul_file")]
+    pub soul_file: String,
+    #[serde(default = "default_identity_file")]
+    pub identity_file: String,
+    #[serde(default = "default_agents_file")]
+    pub agents_file: String,
+    #[serde(default = "default_memory_file")]
+    pub memory_file: String,
 }
 
 impl Config {

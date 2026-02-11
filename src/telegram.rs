@@ -407,11 +407,20 @@ pub async fn process_with_claude(
     // Build system prompt
     let memory_context = state.memory.build_memory_context(chat_id);
     let skills_catalog = state.skills.build_skills_catalog();
+    
+    // Load OpenClaw files (SOUL.md, AGENTS.md, IDENTITY.md)
+    let soul_content = load_file_content(&state.config.soul_file);
+    let agents_content = load_file_content(&state.config.agents_file);
+    let identity_content = load_file_content(&state.config.identity_file);
+    
     let system_prompt = build_system_prompt(
         &state.config.bot_username,
         &memory_context,
         chat_id,
         &skills_catalog,
+        soul_content.as_deref(),
+        agents_content.as_deref(),
+        identity_content.as_deref(),
     );
 
     // Try to resume from session
@@ -653,13 +662,40 @@ fn load_messages_from_db(
     ))
 }
 
+fn load_file_content(path: &str) -> Option<String> {
+    std::fs::read_to_string(path).ok()
+}
+
 fn build_system_prompt(
     bot_username: &str,
     memory_context: &str,
     chat_id: i64,
     skills_catalog: &str,
+    soul_content: Option<&str>,
+    agents_content: Option<&str>,
+    identity_content: Option<&str>,
 ) -> String {
-    let mut prompt = format!(
+    // Start with SOUL.md if available (Sandy's personality)
+    let mut prompt = String::new();
+    
+    if let Some(soul) = soul_content {
+        prompt.push_str(soul);
+        prompt.push_str("\n\n---\n\n");
+    }
+    
+    if let Some(identity) = identity_content {
+        prompt.push_str(identity);
+        prompt.push_str("\n\n---\n\n");
+    }
+    
+    // Add AGENTS.md (system capabilities)
+    if let Some(agents) = agents_content {
+        prompt.push_str(agents);
+        prompt.push_str("\n\n---\n\n");
+    }
+    
+    // Add base system capabilities
+    prompt.push_str(&format!(
         r#"You are {bot_username}, a helpful AI assistant on Telegram. You can execute tools to help users with tasks.
 
 You have access to the following capabilities:
@@ -693,7 +729,7 @@ User messages are wrapped in XML tags like <user_message sender="name">content</
 
 Be concise and helpful. When executing commands or tools, show the relevant results to the user.
 "#
-    );
+    ));
 
     if !memory_context.is_empty() {
         prompt.push_str("\n# Memories\n\n");

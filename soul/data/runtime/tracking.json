@@ -1,0 +1,136 @@
+{
+  "version": "1.0",
+  "user_id": "default",
+  "goals": [],
+  "projects": [
+    {
+      "id": "proj_927aae64",
+      "title": "Build house",
+      "description": null,
+      "goal_id": null,
+      "status": "active",
+      "created_at": "2026-02-11T08:37:48.845445+00:00",
+      "target_date": null,
+      "completed_at": null,
+      "notes": null
+    },
+    {
+      "id": "proj_50907052",
+      "title": "Clean the car",
+      "description": null,
+      "goal_id": null,
+      "status": "active",
+      "created_at": "2026-02-11T08:37:52.327418+00:00",
+      "target_date": null,
+      "completed_at": null,
+      "notes": null
+    },
+    {
+      "id": "proj_6f14563b",
+      "title": "Healthy week",
+      "description": null,
+      "goal_id": null,
+      "status": "active",
+      "created_at": "2026-02-11T08:40:05.737799+00:00",
+      "target_date": null,
+      "completed_at": null,
+      "notes": null
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task_617c0c7b",
+      "title": "Walk the dog",
+      "description": null,
+      "project_id": null,
+      "goal_id": null,
+      "status": "todo",
+      "created_at": "2026-02-11T08:36:23.865746+00:00",
+      "due_date": null,
+      "completed_at": null,
+      "notes": "[2026-02-11 09:19] Dog breed: Mutt from Romania"
+    },
+    {
+      "id": "task_9fdc1d0f",
+      "title": "Buy milk",
+      "description": null,
+      "project_id": null,
+      "goal_id": null,
+      "status": "todo",
+      "created_at": "2026-02-11T08:36:28.138964+00:00",
+      "due_date": null,
+      "completed_at": null,
+      "notes": null
+    },
+    {
+      "id": "task_492f4201",
+      "title": "Call doctor",
+      "description": null,
+      "project_id": null,
+      "goal_id": null,
+      "status": "todo",
+      "created_at": "2026-02-11T08:36:33.432185+00:00",
+      "due_date": null,
+      "completed_at": null,
+      "notes": null
+    },
+    {
+      "id": "task_4900d090",
+      "title": "Paint house green",
+      "description": null,
+      "project_id": "proj_927aae64",
+      "goal_id": null,
+      "status": "todo",
+      "created_at": "2026-02-11T09:28:25.929797+00:00",
+      "due_date": null,
+      "completed_at": null,
+      "notes": null
+    }
+  ],
+  "reminders": [
+    {
+      "id": "rem_3",
+      "message": "Time to test! ⚡",
+      "schedule": "2024-03-20T10:51:00+00:00",
+      "linked_to": null,
+      "is_recurring": false,
+      "created_at": "2026-02-11T10:23:32.702035+00:00"
+    },
+    {
+      "id": "rem_4",
+      "message": "Time to stretch! Stand up and get those muscles moving. 🧘‍♂️",
+      "schedule": "2024-03-20T10:54:00+00:00",
+      "linked_to": null,
+      "is_recurring": false,
+      "created_at": "2026-02-11T10:25:09.916175+00:00"
+    },
+    {
+      "id": "rem_5",
+      "message": "Time to stretch! Move that body - even a quick 30-second stretch helps. 🧘‍♂️",
+      "schedule": "2024-03-20T10:58:00+00:00",
+      "linked_to": null,
+      "is_recurring": false,
+      "created_at": "2026-02-11T13:20:28.242217+00:00"
+    },
+    {
+      "id": "rem_6",
+      "message": "Water break! 💧 Time to hydrate.",
+      "schedule": "2024-03-20T11:01:00+00:00",
+      "linked_to": null,
+      "is_recurring": false,
+      "created_at": "2026-02-11T13:35:30.240808+00:00"
+    },
+    {
+      "id": "rem_7",
+      "message": "Time to turn around! 🔄 Quick position change.",
+      "schedule": "2024-03-20T11:03:00+00:00",
+      "linked_to": null,
+      "is_recurring": false,
+      "created_at": "2026-02-11T13:35:38.594250+00:00"
+    }
+  ],
+  "meta": {
+    "last_updated": "2026-02-11T13:35:38.594268+00:00",
+    "schema_version": "1.0"
+  }
+}

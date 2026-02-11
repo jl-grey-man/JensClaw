@@ -383,6 +383,11 @@ fn default_config() -> Config {
         discord_bot_token: None,
         discord_allowed_channels: vec![],
         show_thinking: false,
+        soul_file: "./soul/SOUL.md".into(),
+        identity_file: "./soul/IDENTITY.md".into(),
+        agents_file: "./soul/AGENTS.md".into(),
+        memory_file: "./soul/data/MEMORY.md".into(),
+        web_port: 3000,
     }
 }
 

@@ -1,7 +1,7 @@
 use microclaw::config::Config;
 use microclaw::error::MicroClawError;
 use microclaw::{
-    builtin_skills, config_wizard, db, gateway, logging, mcp, memory, setup, skills, telegram,
+    builtin_skills, config_wizard, db, gateway, logging, mcp, memory, setup, skills, telegram, web,
 };
 use std::path::Path;
 use tracing::info;
@@ -267,16 +267,28 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut runtime_config = config.clone();
-    runtime_config.data_dir = runtime_data_dir;
+    runtime_config.data_dir = runtime_data_dir.clone();
 
-    telegram::run_bot(
+    // Start web server in background
+    let data_dir_for_web = runtime_data_dir.clone();
+    let web_port = config.web_port;
+    let web_handle = tokio::spawn(async move {
+        web::start_web_server(data_dir_for_web, web_port).await;
+    });
+
+    // Run Telegram bot (this blocks until bot stops)
+    let bot_result = telegram::run_bot(
         runtime_config,
         db,
         memory_manager,
         skill_manager,
         mcp_manager,
     )
-    .await?;
+    .await;
 
+    // If bot stops, also stop the web server
+    web_handle.abort();
+
+    bot_result?;
     Ok(())
 }

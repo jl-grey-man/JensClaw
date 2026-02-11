@@ -1,0 +1,48 @@
+# Sandy - ADHD Coach Configuration
+# Copy this file to sandy.config.yaml and fill in the required values
+
+# Telegram Bot Configuration
+telegram_bot_token: "8580808276:AAHDpZSVG3LynNXTXwLM6IMrF8hmN9VUquY"
+bot_username: "sandy_adhd_coach_bot"
+
+# LLM Configuration (OpenRouter with Claude 3.5 Sonnet)
+llm_provider: "openrouter"
+api_key: "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"
+model: "anthropic/claude-3.5-sonnet"
+llm_base_url: "https://openrouter.ai/api/v1"
+
+# Bot Behavior
+max_tokens: 8192
+max_tool_iterations: 100
+max_history_messages: 50
+max_session_messages: 40
+compact_keep_recent: 20
+
+# Data & Working Directories
+data_dir: "./soul/data"
+working_dir: "./tmp"
+
+# Timezone (IANA format)
+timezone: "Europe/Stockholm"
+
+# OpenClaw File Paths (for loading into system prompt)
+soul_file: "./soul/SOUL.md"
+identity_file: "./soul/IDENTITY.md"
+agents_file: "./soul/AGENTS.md"
+patterns_file: "./soul/data/patterns.json"
+tracking_file: "./soul/data/tracking.json"
+memory_file: "./soul/data/MEMORY.md"
+
+# Optional: Control chats (for cross-chat operations)
+# control_chat_ids: []
+
+# Sandy's Web UI (accessible from anywhere on your network)
+web_port: 3000
+
+# Session & Memory
+# Note: Sandy uses file-based memory (OpenClaw style) instead of Pinecone
+enable_pattern_learning: true
+enable_tracking_system: true
+
+# Logging
+log_level: "info"

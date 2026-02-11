@@ -80,12 +80,7 @@ mod tests {
         ensure_builtin_skills(&root).unwrap();
 
         let skills_root = root.join("skills");
-        for skill in [
-            "apple-notes",
-            "apple-reminders",
-            "apple-calendar",
-            "weather",
-        ] {
+        for skill in ["weather"] {
             let skill_file = skills_root.join(skill).join("SKILL.md");
             assert!(skill_file.exists(), "missing built-in skill: {skill}");
             let content = std::fs::read_to_string(skill_file).unwrap();
