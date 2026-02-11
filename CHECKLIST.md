@@ -119,70 +119,151 @@
 
 ---
 
-## Phase 4: Automatic Pattern Learning 🔄 IN PROGRESS
+## Phase 4: Self-Review System ✅ COMPLETED
 
-### Session Analysis System
-- [ ] **Task 4.1:** Track conversation inactivity timer (30 minutes)
-  - Store last_message_timestamp per chat
-  - Detect when 30 minutes pass without messages
+### Daily Self-Analysis
+- [x] **Task 4.1:** Build automatic daily analysis (3 AM)
+  - Analyze conversation quality and helpfulness
+  - Review goal and project support effectiveness
+  - Check pattern recognition accuracy
+  - Evaluate tool usage appropriateness
   
-- [ ] **Task 4.2:** Archive conversation session for analysis
-  - Save conversation history to file
-  - Trigger analysis after 30-min inactivity
+- [x] **Task 4.2:** Create Review Mode workflow
+  - Present findings as suggestions to user
+  - Require explicit approval ("yes") for changes
+  - Never make autonomous modifications
+  - Log all proposals for transparency
   
-- [ ] **Task 4.3:** Extract pattern-relevant information
-  - Analyze for keywords: "always", "never", "struggle with", "when I"
-  - Identify behaviors, preferences, energy patterns
-  - Detect ADHD-related context
+- [x] **Task 4.3:** Implement configuration change suggestions
+  - Propose updates to SOUL.md (personality)
+  - Propose updates to AGENTS.md (capabilities)
+  - Track approved vs rejected changes
   
-- [ ] **Task 4.4:** Auto-record observations to existing patterns
-  - Match extracted info to appropriate pattern category
-  - Call `add_observation` tool automatically
-  - Update confidence based on new evidence
-  
-- [ ] **Task 4.5:** Auto-create new patterns when needed
-  - Detect when behavior doesn't fit existing 18 categories
-  - Generate pattern ID, name, description
-  - Call `create_pattern` tool automatically
-  
-- [ ] **Task 4.6:** Log automatic pattern learning to activity feed
-  - Show "Pattern observation auto-added" in Web UI
-  - Track what was learned
+- [x] **Task 4.4:** Safety guardrails
+  - No autonomous changes without approval
+  - No code modifications (Rust source protected)
+  - No memory deletion without consent
+  - Full transparency before any action
 
-**Priority:** High
-**Estimated Time:** 3-4 days
-**Dependencies:** None (all tools exist)
+**Status:** ✅ Implemented via `soul/data/skills/sandy-evolver/SKILL.md`
+**Result:** Self-review system operational, all changes require user approval
 
 ---
 
-## Phase 5: Automatic Note Addition 🔄 IN PROGRESS
+## Phase 5: Automatic Note Addition 🔄 SUPERCEDED
 
-### Context Detection System
-- [ ] **Task 5.1:** Identify note-worthy information in conversation
-  - Keywords: "I prefer", "I work better", "when I", "usually"
-  - Context about specific goals/tasks
-  - User preferences and workarounds
-  
-- [ ] **Task 5.2:** Match context to relevant items
-  - Determine which goal/project/task the context applies to
-  - Use conversation context and recent mentions
-  
-- [ ] **Task 5.3:** Auto-add notes with timestamps
-  - Call `add_note` tool automatically
-  - Format: "[timestamp] Context: ..."
-  
-- [ ] **Task 5.4:** Confirmation or silent mode?
-  - Option A: Ask user "Should I note that you prefer mornings?"
-  - Option B: Add silently, show in Web UI
-  - **Decision needed:** Which approach?
-
-**Priority:** High
-**Estimated Time:** 2-3 days
-**Dependencies:** Phase 4 (shared analysis logic)
+Replaced by Self-Review System (Phase 4). Pattern and context learning now happens through daily self-review with user approval rather than fully automatic detection. This gives user control over what Sandy learns.
 
 ---
 
-## Phase 6: Proactive Sandy ⏳ PENDING
+## Phase 5: Document Management System ✅ COMPLETED
+
+### File Operations
+- [x] **Task 5.1:** Create `soul/data/skills/documents/SKILL.md`
+  - Instructions for creating Markdown, Text, HTML files
+  - Guidance for CSS, JavaScript, JSON, Python files
+  - File organization best practices
+  
+- [x] **Task 5.2:** File creation workflow
+  - Create notes: "Create a note about my project ideas"
+  - Create code files: "Write a Python script"
+  - Create web pages: "Build me a simple website"
+  - Store in `/mnt/storage/` (accessible from Mac)
+  
+- [x] **Task 5.3:** Directory organization
+  - Recommended structure: notes/, projects/, scripts/, lists/
+  - Guidance for naming conventions
+  - Tips for shared Mac access
+  
+- [x] **Task 5.4:** Update AGENTS.md
+  - Document document management capability
+  - Add to system capabilities list
+  - Include in HELP command
+
+**Status:** ✅ Fully operational
+**Location:** Files in `/mnt/storage/` accessible from Mac
+**Skills:** Document management workflow documented in AGENTS.md
+
+---
+
+## Phase 6: Skill Builder System ✅ COMPLETED
+
+### Skill Creation Infrastructure
+- [x] **Task 6.1:** Create `soul/data/skills/sandy-skill-builder/SKILL.md`
+  - Skill structure documentation
+  - SKILL.md format guide
+  - Examples: morning routine, research assistant, file organizer
+  
+- [x] **Task 6.2:** Build `create_skill` tool
+  - Tool definition and implementation
+  - Input: skill_name, description, content
+  - Output: SKILL.md file in `soul/data/skills/custom/`
+  - Validate skill_name format (lowercase-hyphens)
+  
+- [x] **Task 6.3:** Skill storage and organization
+  - Store in `soul/data/skills/custom/{skill-name}/SKILL.md`
+  - Separate from builtin skills
+  - Easy to list, edit, delete
+  
+- [x] **Task 6.4:** Test skill activation
+  - "Use my [skill-name] skill" loads and activates
+  - Sandy follows skill instructions
+  - Multiple skills can coexist
+  
+- [x] **Task 6.5:** Documentation updates
+  - Update AGENTS.md with Skill Builder section
+  - Add to HELP command
+  - Include examples of useful skills
+
+**Status:** ✅ Fully operational
+**First skills created:** research-assistant (built-in example)
+**Tool registered:** `create_skill` in tools/mod.rs
+
+---
+
+## Phase 7: Agent Delegation System ✅ COMPLETED
+
+### Background Agent Infrastructure
+- [x] **Task 7.1:** Create agent management tools
+  - `spawn_agent` - spawn specialized background agents
+  - `list_agents` - view all active agents
+  - `set_agent_reporting` - toggle direct Telegram reports
+  - `agent_status` - check specific agent progress
+  
+- [x] **Task 7.2:** Agent registry system
+  - Global registry using lazy_static
+  - Track agent_id, name, specialty, status
+  - Monitor reporting_enabled flag per agent
+  - Track created_at, last_activity timestamps
+  
+- [x] **Task 7.3:** Agent types and specialties
+  - Research Agent: web research, data gathering, analysis
+  - Code Agent: Python scripts, automation, web pages
+  - File Agent: organization, cleanup, categorization
+  
+- [x] **Task 7.4:** Toggle reporting system
+  - User controls per-agent reporting
+  - Enabled: Agent sends direct Telegram messages
+  - Disabled: Sandy summarizes results
+  - `set_agent_reporting` tool implementation
+  
+- [x] **Task 7.5:** Integration with Telegram
+  - Agents can send messages if reporting enabled
+  - Sandy coordinates and summarizes
+  - Background processing while main chat continues
+  
+- [x] **Task 7.6:** Documentation and HELP
+  - Update AGENTS.md with Agent Delegation section
+  - Add to HELP command
+  - Document usage patterns and examples
+
+**Status:** ✅ Fully operational
+**Dependencies:** lazy_static crate added to Cargo.toml
+**Tools:** spawn_agent, list_agents, set_agent_reporting, agent_status
+
+---
+
+## Phase 8: Proactive Sandy ⏳ PENDING
 
 ### Proactive Check-ins
 - [ ] **Task 6.1:** Daily/weekly check-in reminders
@@ -285,15 +366,30 @@
 ## Current Sprint: Week of Feb 11, 2026
 
 ### This Week's Goals:
-1. **Complete Phase 4** - Automatic pattern learning (30-min sessions)
-2. **Start Phase 5** - Automatic note addition
-3. **Documentation cleanup** ✅ DONE
+1. **✅ COMPLETED:** Self-Review System (Phase 4)
+2. **✅ COMPLETED:** Document Management (Phase 5)
+3. **✅ COMPLETED:** Skill Builder System (Phase 6)
+4. **✅ COMPLETED:** Agent Delegation System (Phase 7)
+5. **Update Documentation** ✅ DONE - PROJECT.md and CHECKLIST.md updated
 
 ### Active Tasks:
-- [~] Implement 30-minute inactivity detection
-- [~] Build conversation session archiver
-- [ ] Create pattern extraction logic
-- [ ] Test auto-observation recording
+- [x] Deploy to Raspberry Pi and test all features
+- [x] Create first custom skill (research-assistant)
+- [x] Test agent delegation with toggle reporting
+- [x] Verify document management in /mnt/storage
+
+### Completed Today:
+- ✅ Self-review system with Review Mode (user approval required)
+- ✅ Document management skill for /mnt/storage
+- ✅ Skill builder with create_skill tool
+- ✅ Agent delegation system with toggleable reporting
+- ✅ HELP command with all features
+- ✅ Config file support for sandy.config.yaml
+
+### Next Sprint Goals:
+- Start Phase 9: Proactive Sandy (unprompted check-ins)
+- Test agent system with real research/coding tasks
+- Create additional custom skills
 
 ### Blocked/Issues:
 - [!] None currently

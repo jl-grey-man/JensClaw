@@ -41,11 +41,14 @@ SandyNew/
 │   ├── SOUL.md        # Sandy's personality + ADHD expertise
 │   ├── AGENTS.md      # System capabilities & instructions
 │   ├── IDENTITY.md    # Name, emoji, presentation
-│   └── data/
-│       ├── patterns.json      # 18 ADHD pattern categories
-│       ├── tracking.json      # Goals/Projects/Tasks/Reminders
-│       ├── activity_log.json  # All actions logged
-│       └── MEMORY.md          # Runtime memory
+│   ├── data/
+│   │   ├── patterns.json      # 18 ADHD pattern categories
+│   │   ├── tracking.json      # Goals/Projects/Tasks/Reminders
+│   │   ├── activity_log.json  # All actions logged
+│   │   └── MEMORY.md          # Runtime memory
+│   └── skills/        # Built-in and custom skills
+│       ├── builtin/           # Core skills (documents, etc.)
+│       └── custom/            # User-created skills
 ├── src/                # Rust source code
 │   ├── main.rs        # Entry point
 │   ├── lib.rs         # Module exports
@@ -54,9 +57,11 @@ SandyNew/
 │   ├── scheduler.rs   # Task scheduler
 │   ├── activity.rs    # Activity logging
 │   └── tools/         # All tool implementations
-│       ├── tracking.rs    # Goals/Projects/Tasks/Reminders
-│       ├── patterns.rs    # Pattern learning
-│       ├── schedule.rs    # Reminder scheduling
+│       ├── tracking.rs        # Goals/Projects/Tasks/Reminders
+│       ├── patterns.rs        # Pattern learning
+│       ├── schedule.rs        # Reminder scheduling
+│       ├── create_skill.rs    # Create custom skills
+│       ├── agent_management.rs # Spawn/manage agents
 │       └── ...
 ├── static/
 │   └── index.html     # Web dashboard UI
@@ -134,6 +139,72 @@ Accessible at `http://localhost:3000`:
 - **Clickable Items:** View full details including notes
 - **Auto-refresh:** Updates every 5 seconds
 
+### 7. Document Management System
+Full file management in `/mnt/storage`:
+- **Create files:** Markdown, Text, HTML, CSS, JS, JSON, Python
+- **Read & update:** View and modify existing files
+- **Organize:** Create subdirectories, move files
+- **Access:** All files accessible from Mac (shared folder)
+- **Skill:** Uses `soul/data/skills/documents/SKILL.md`
+
+**Supported Operations:**
+- Create notes, reports, lists, code files
+- Build websites (HTML/CSS/JS)
+- Write Python scripts for automation
+- Organize files into logical folders
+
+### 8. Self-Review System (Daily Improvement)
+Automatic daily analysis (3 AM) of Sandy's coaching effectiveness:
+- **Analyzes:** Conversation quality, goal support, pattern usage
+- **Suggests:** Improvements to better help with ADHD
+- **Review Mode:** All changes require your explicit "yes"
+- **Never Autonomous:** Sandy cannot modify herself without approval
+- **Skill:** Uses `soul/data/skills/sandy-evolver/SKILL.md`
+
+**Key Safety Rules:**
+- No autonomous changes - you approve every suggestion
+- No code modifications - cannot edit Rust source
+- No memory deletion - cannot remove learned patterns
+- Full transparency - all analysis shared before action
+
+### 9. Skill Builder System
+Create custom skills for reusable workflows:
+- **Tool:** `create_skill` - Programmatically create skills
+- **Location:** `soul/data/skills/custom/`
+- **Usage:** "Create a skill for my morning routine"
+- **Activation:** "Use my [skill-name] skill"
+
+**Examples:**
+- Morning routine guides
+- Medication tracking workflows
+- Research assistant methodology
+- File organization procedures
+- Focus technique guides
+
+### 10. Agent Delegation System
+Spawn specialized background agents while continuing conversation:
+- **spawn_agent** - Create agents for web research, coding, file org
+- **list_agents** - View all active agents with reporting status
+- **set_agent_reporting** - Toggle direct Telegram reports per agent
+- **agent_status** - Check progress of specific agents
+
+**Agent Types:**
+- **Research Agent:** Web searches, data gathering, analysis
+- **Code Agent:** Python scripts, automation tools, web pages
+- **File Agent:** Organization, cleanup, categorization
+
+**Toggle Control:**
+- Enabled: Agent reports directly to you in Telegram
+- Disabled: Sandy summarizes results when complete
+
+**Example:**
+```
+You: "Research ADHD sleep strategies"
+Sandy: "I'll spawn a research agent..." [agent works in background]
+[You keep chatting with Sandy]
+5 min later: Sandy summarizes research findings
+```
+
 ## Key Design Principles
 
 ### 1. Natural Language Interface
@@ -202,34 +273,49 @@ Edit `microclaw.config.yaml`:
 4. Update AGENTS.md if adding capabilities
 5. **Update PROJECT.md and CHECKLIST.md**
 
-## Current Limitations
+## Current Capabilities
 
 ### What's Working ✅
-- Telegram interface with Sandy's personality
-- Pattern learning (manual via tools)
-- Goal/Project/Task tracking with notes
-- Reminder scheduling with flexible time parsing
-- Web UI dashboard
-- Activity logging
+- **Telegram interface** with Sandy's personality
+- **Pattern learning** (manual via tools + automatic via self-review)
+- **Goal/Project/Task tracking** with notes and hierarchy
+- **Reminder scheduling** with flexible natural language parsing
+- **Web UI dashboard** with real-time activity feed
+- **Document management** - create/edit files in `/mnt/storage`
+- **Daily self-review** - automatic improvement analysis with user approval
+- **Skill builder** - create custom workflows and procedures
+- **Agent delegation** - spawn background agents for research/coding/tasks
+- **Toggle reporting** - control whether agents report directly to you
+- **HELP command** - comprehensive help via Telegram
+- **Config flexibility** - supports `sandy.config.yaml` and legacy `microclaw.config.yaml`
 
 ### What's In Progress 🔄
-- **Automatic pattern learning** (30-min session analysis)
-- **Automatic note addition** (detect note-worthy info)
-- **Proactive Sandy** (unprompted check-ins)
+- **Enhanced self-review** - More sophisticated analysis and suggestions
+- **Proactive Sandy** (unprompted check-ins based on patterns)
+- **Agent persistence** - Option to keep agents with accumulated knowledge
 
 ### Known Issues ⚠️
-- Reminders are stored in both DB and JSON (sync risk, but low for single-user)
+- Reminders stored in both DB and JSON (sync risk, low for single-user)
 - Web UI needs page refresh for some updates (5-second polling)
 - No authentication on web UI (local use only)
-- ~~Reminders scheduled for 2024 instead of current year~~ **FIXED** - System prompt now includes current UTC time and LLM passes natural language to server-side parser
+- ~~Reminders scheduled for 2024 instead of current year~~ **FIXED**
+- ~~Config file naming confusion~~ **FIXED** - Now supports `sandy.config.yaml`
 
 ## Future Vision
 
+### Completed Recently ✅
+1. ✅ **Document management** - Full file operations in `/mnt/storage`
+2. ✅ **Self-review system** - Daily automatic analysis with user approval
+3. ✅ **Skill builder** - Create custom ADHD workflows and procedures
+4. ✅ **Agent delegation** - Spawn background agents for research/coding
+5. ✅ **Config flexibility** - Support for `sandy.config.yaml`
+
 ### Short-term (Next 1-2 months)
-1. Automatic pattern learning after 30-min conversation gaps
-2. Automatic note addition when Sandy learns useful context
-3. Proactive reminders based on learned patterns
+1. Proactive reminders based on learned patterns
+2. Enhanced agent capabilities (persistent agents, more types)
+3. More built-in skills (medication tracker, focus techniques, etc.)
 4. Multi-user support architecture
+5. Integration with calendar apps (Google Calendar, etc.)
 
 ### Medium-term (3-6 months)
 1. Web UI editing capabilities
@@ -284,5 +370,5 @@ MIT License - See LICENSE file
 
 ---
 
-**Last Updated:** February 11, 2026
+**Last Updated:** February 11, 2026 (Major update: Skill Builder, Agent Delegation, Self-Review, Document Management)
 **Next Review:** After each major feature completion
