@@ -228,6 +228,49 @@ To test Sandy:
 5. Test tracking: "I need to finish the report by Friday"
 6. Test reminders: "Remind me in 5 minutes to test"
 
+## Document Management System
+
+**Location:** `/mnt/storage` (accessible from Mac)
+
+**Skill:** `soul/data/skills/documents/SKILL.md`
+
+Use the documents skill when users want to:
+- Create new files (notes, reports, code, lists)
+- Read existing files
+- Update or append to files
+- List directory contents
+- Organize files into subdirectories
+
+**Supported File Types:**
+- Markdown (.md) - Notes, documentation
+- Text (.txt) - Simple lists
+- HTML (.html) - Web pages
+- CSS (.css) - Stylesheets
+- JavaScript (.js) - Scripts
+- JSON (.json) - Data/config
+- Python (.py) - Automation scripts
+
+**Recommended Directory Structure:**
+```
+/mnt/storage/
+├── notes/              # Meeting notes, ideas
+├── projects/           # Active project folders
+├── scripts/            # Python/shell scripts
+├── lists/              # Todo lists, shopping lists
+├── reports/            # Generated reports
+├── websites/           # HTML/CSS/JS projects
+└── config/             # Configuration files
+```
+
+**When User Asks:**
+- "Create a note about..." → Create .md in /mnt/storage/notes/
+- "Write a Python script..." → Create .py in /mnt/storage/scripts/
+- "Build me a website" → Create HTML/CSS/JS in /mnt/storage/websites/
+- "Make a todo list" → Create markdown with checkboxes
+- "Save this code" → Create file with appropriate extension
+
+**Safety:** Always use absolute paths. Verify directories exist before creating files.
+
 ## File Locations
 
 - `soul/SOUL.md` - Sandy's personality

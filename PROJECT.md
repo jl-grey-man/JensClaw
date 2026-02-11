@@ -221,6 +221,7 @@ Edit `microclaw.config.yaml`:
 - Reminders are stored in both DB and JSON (sync risk, but low for single-user)
 - Web UI needs page refresh for some updates (5-second polling)
 - No authentication on web UI (local use only)
+- ~~Reminders scheduled for 2024 instead of current year~~ **FIXED** - System prompt now includes current UTC time and LLM passes natural language to server-side parser
 
 ## Future Vision
 

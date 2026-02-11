@@ -112,7 +112,9 @@
 - [x] Make tracking functions public (read_tracking, write_tracking)
 - [x] Add Datelike import for date parsing
 
-- [ ] **Fix:** Reminders firing immediately (wrong year: 2024)
+- [x] **Fix:** Reminders firing immediately (wrong year: 2024)
+  - Root cause: System prompt didn't include current date/time and instructed LLM to compute ISO timestamps itself. LLM used its training cutoff year (2024) instead of the real date.
+  - Solution: (1) Inject `current_time` (UTC) into system prompt so LLM knows the real date. (2) Changed scheduling instructions to tell LLM to pass natural language time expressions (e.g., "in 5 minutes") directly as `schedule_value`, letting server-side `parse_natural_to_iso()` handle the conversion with `chrono::Local::now()`.
 
 
 ---
