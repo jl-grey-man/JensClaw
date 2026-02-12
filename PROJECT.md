@@ -37,8 +37,14 @@ User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
 SandyNew/
 ├── PROJECT.md           ← You are here (main documentation)
 ├── CHECKLIST.md         ← Development roadmap and tasks
+├── AI-RULES.md          ← Development standards and protocols
+├── architecture.md      ← Hard Rails architecture specification
+├── TOOLS.md             ← Definitive tool reference (The Constitution)
+├── QUICK_DEPLOY.md      ← Quick start deployment guide
 ├── config/
 │   └── sandy.config.yaml    # Bot configuration
+├── prompts/
+│   └── guard_rails.txt      # DNA injected into all spawned agents
 ├── soul/               # OpenClaw identity system
 │   ├── SOUL.md        # Sandy's personality + ADHD expertise
 │   ├── AGENTS.md      # System capabilities & instructions
@@ -49,6 +55,20 @@ SandyNew/
 │   │   ├── activity_log.json  # All actions logged
 │   │   └── MEMORY.md          # Runtime memory
 │   └── skills/        # Built-in and custom skills
+│       └── custom/    # User-created skills
+├── storage/           # Hard Rails: The Truth (persistent storage)
+│   ├── agents/        # Agent JSON configurations
+│   │   ├── zilla.json       # Research agent
+│   │   └── gonza.json       # Writer agent
+│   ├── tasks/         # Job workspaces
+│   │   └── job_*/     # Individual job folders
+│   │       ├── instructions.md
+│   │       ├── raw_data.md
+│   │       └── final_output.md
+│   └── memory/        # Long-term data
+│       ├── projects/
+│       ├── todos/
+│       └── logs/
 │       ├── builtin/           # Core skills (documents, etc.)
 │       └── custom/            # User-created skills
 ├── src/                # Rust source code
