@@ -4,7 +4,9 @@
 
 > ⚠️ **IMPORTANT:** These documents must be updated at the end of each major task or feature implementation. This means: if you are implementing a big change, you need to stop whenever one sub-feature is implemented and update these documents before continuing. 
 
-> ⚠️ **IMPORTANT:** Read the document AI-RULES.MD and follow the instructions. 
+> ⚠️ **IMPORTANT:** Read the document AI-RULES.MD and follow the instructions.
+
+> 🔒 **NEVER commit secrets (API keys, tokens) to this repo.** It is public. Secrets go in `config/sandy.config.yaml` (gitignored). See AI-RULES.md for details.
 
 ## Project Overview
 

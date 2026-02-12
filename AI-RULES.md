@@ -40,6 +40,33 @@ Never suggest actual time frames (2 hours, 3 weeks) in timelines. You are really
 
 ---
 
+# SECRETS & SENSITIVE DATA
+
+**CRITICAL: NEVER commit secrets to the repository. This is a public repo.**
+
+### What counts as secrets:
+- API keys (OpenRouter, Tavily, etc.)
+- Telegram bot tokens
+- Passwords, credentials, access tokens
+- Any key starting with `sk-`, `xoxb-`, `ghp_`, etc.
+
+### Where secrets go:
+- **`config/sandy.config.yaml`** — This file is `.gitignored`. It lives only on the local machine / Pi. Never committed.
+- **`config/sandy.config.yaml.example`** — The template with placeholder values (`YOUR_API_KEY`). This IS committed.
+- **`.env`** files — Also `.gitignored`.
+
+### Rules:
+1. **Never hardcode secrets in source code** (`.rs`, `.py`, `.md`, etc.)
+2. **Never create new config files with secrets** outside of the gitignored paths
+3. **If you need to reference a key in docs**, write `YOUR_API_KEY` or `<your-key-here>`, never the actual value
+4. **If you accidentally see a real key**, do NOT echo it back in responses, logs, or commit messages
+5. **When setting up a new machine**, copy `sandy.config.yaml.example` → `sandy.config.yaml` and fill in real values manually
+
+### Previous incident:
+`config/sandy.config.yaml` was committed to the public GitHub repo with real API keys and bot tokens. Keys were revoked by the provider. Fixed by gitignoring the config and creating a `.example` template.
+
+---
+
 # MANDATORY CODING & IMPLEMENTATION PROTOCOLS
 
 CRITICAL: You are strictly forbidden from generating "placeholder," "stub," or "simulated" code unless explicitly requested. You must adhere to the following protocols to prevent "skeleton traps" where architecture exists but execution is missing.
