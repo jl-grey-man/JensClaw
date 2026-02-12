@@ -396,6 +396,7 @@ fn default_config() -> Config {
         agents_file: "./soul/AGENTS.md".into(),
         memory_file: "./soul/data/MEMORY.md".into(),
         web_port: 3000,
+        tavily_api_key: None,
     }
 }
 

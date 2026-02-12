@@ -1,22 +1,29 @@
 use async_trait::async_trait;
 use serde_json::json;
-use std::env;
 use std::time::Duration;
 use tavily::{Tavily, SearchRequest};
 
 use super::{schema_object, Tool, ToolResult};
 use crate::claude::ToolDefinition;
+use crate::config::Config;
 
-pub struct WebSearchTool;
+pub struct WebSearchTool {
+    config: Config,
+}
 
 impl WebSearchTool {
-    pub fn new() -> Self {
-        Self
+    pub fn new(config: &Config) -> Self {
+        Self {
+            config: config.clone(),
+        }
     }
 
-    fn get_api_key() -> Result<String, String> {
-        env::var("TAVILY_API_KEY")
-            .map_err(|_| "TAVILY_API_KEY environment variable not set. Add it to your .env file.".to_string())
+    fn get_api_key(&self) -> Result<String, String> {
+        self.config
+            .tavily_api_key
+            .clone()
+            .filter(|k| !k.is_empty())
+            .ok_or_else(|| "Tavily API key not configured. Add tavily_api_key to your sandy.config.yaml file.".to_string())
     }
 }
 
@@ -96,7 +103,7 @@ impl Tool for WebSearchTool {
                 .collect())
             .unwrap_or_default();
 
-        let api_key = match Self::get_api_key() {
+        let api_key = match self.get_api_key() {
             Ok(key) => key,
             Err(e) => return ToolResult::error(e),
         };

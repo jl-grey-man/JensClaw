@@ -4,10 +4,10 @@ use anyhow::{anyhow, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const LINUX_SERVICE_NAME: &str = "microclaw-gateway.service";
-const MAC_LABEL: &str = "ai.microclaw.gateway";
-const LOG_STDOUT_FILE: &str = "microclaw-gateway.log";
-const LOG_STDERR_FILE: &str = "microclaw-gateway.error.log";
+const LINUX_SERVICE_NAME: &str = "sandy-gateway.service";
+const MAC_LABEL: &str = "ai.sandy.gateway";
+const LOG_STDOUT_FILE: &str = "sandy-gateway.log";
+const LOG_STDERR_FILE: &str = "sandy-gateway.error.log";
 const DEFAULT_LOG_LINES: usize = 200;
 
 #[derive(Debug, Clone)]
@@ -47,7 +47,7 @@ pub fn print_gateway_help() {
         r#"Gateway service management
 
 USAGE:
-    microclaw gateway <ACTION>
+    sandy gateway <ACTION>
 
 ACTIONS:
     install      Install and enable persistent gateway service
@@ -165,7 +165,7 @@ fn build_context() -> Result<ServiceContext> {
 }
 
 fn resolve_config_path(cwd: &Path) -> Option<PathBuf> {
-    if let Ok(from_env) = std::env::var("MICROCLAW_CONFIG") {
+    if let Ok(from_env) = std::env::var("SANDY_CONFIG") {
         let path = PathBuf::from(from_env);
         return Some(if path.is_absolute() {
             path
@@ -174,7 +174,7 @@ fn resolve_config_path(cwd: &Path) -> Option<PathBuf> {
         });
     }
 
-    for candidate in ["microclaw.config.yaml", "microclaw.config.yml"] {
+    for candidate in ["sandy.config.yaml", "sandy.config.yml"] {
         let path = cwd.join(candidate);
         if path.exists() {
             return Some(path);
@@ -225,16 +225,16 @@ fn linux_unit_path() -> Result<PathBuf> {
 fn render_linux_unit(ctx: &ServiceContext) -> String {
     let mut unit = String::new();
     unit.push_str("[Unit]\n");
-    unit.push_str("Description=MicroClaw Gateway Service\n");
+    unit.push_str("Description=Sandy Gateway Service\n");
     unit.push_str("After=network.target\n\n");
     unit.push_str("[Service]\n");
     unit.push_str("Type=simple\n");
     unit.push_str(&format!("WorkingDirectory={}\n", ctx.working_dir.display()));
     unit.push_str(&format!("ExecStart={} start\n", ctx.exe_path.display()));
-    unit.push_str("Environment=MICROCLAW_GATEWAY=1\n");
+    unit.push_str("Environment=SANDY_GATEWAY=1\n");
     if let Some(config_path) = &ctx.config_path {
         unit.push_str(&format!(
-            "Environment=MICROCLAW_CONFIG={}\n",
+            "Environment=SANDY_CONFIG={}\n",
             config_path.display()
         ));
     }
@@ -383,10 +383,10 @@ fn render_macos_plist(ctx: &ServiceContext) -> String {
 
     items.push("  <key>EnvironmentVariables</key>".to_string());
     items.push("  <dict>".to_string());
-    items.push("    <key>MICROCLAW_GATEWAY</key>".to_string());
+    items.push("    <key>SANDY_GATEWAY</key>".to_string());
     items.push("    <string>1</string>".to_string());
     if let Some(config_path) = &ctx.config_path {
-        items.push("    <key>MICROCLAW_CONFIG</key>".to_string());
+        items.push("    <key>SANDY_CONFIG</key>".to_string());
         items.push(format!(
             "    <string>{}</string>",
             xml_escape(&config_path.to_string_lossy())
@@ -447,9 +447,7 @@ fn start_macos() -> Result<()> {
     let target = mac_target_label()?;
     let plist_path = mac_plist_path()?;
     if !plist_path.exists() {
-        return Err(anyhow!(
-            "Service not installed. Run: microclaw gateway install"
-        ));
+        return Err(anyhow!("Service not installed. Run: sandy gateway install"));
     }
     let gui_target = format!("gui/{}", current_uid()?);
     let plist_path_str = plist_path.to_string_lossy().to_string();
@@ -522,34 +520,34 @@ mod tests {
     #[test]
     fn test_render_linux_unit_contains_start_and_restart() {
         let ctx = ServiceContext {
-            exe_path: PathBuf::from("/usr/local/bin/microclaw"),
-            working_dir: PathBuf::from("/tmp/microclaw"),
-            config_path: Some(PathBuf::from("/tmp/microclaw/microclaw.config.yaml")),
-            runtime_logs_dir: PathBuf::from("/tmp/microclaw/runtime/logs"),
+            exe_path: PathBuf::from("/usr/local/bin/sandy"),
+            working_dir: PathBuf::from("/tmp/sandy"),
+            config_path: Some(PathBuf::from("/tmp/sandy/sandy.config.yaml")),
+            runtime_logs_dir: PathBuf::from("/tmp/sandy/runtime/logs"),
         };
 
         let unit = render_linux_unit(&ctx);
-        assert!(unit.contains("ExecStart=/usr/local/bin/microclaw start"));
+        assert!(unit.contains("ExecStart=/usr/local/bin/sandy start"));
         assert!(unit.contains("Restart=always"));
-        assert!(unit.contains("MICROCLAW_GATEWAY=1"));
-        assert!(unit.contains("MICROCLAW_CONFIG=/tmp/microclaw/microclaw.config.yaml"));
+        assert!(unit.contains("SANDY_GATEWAY=1"));
+        assert!(unit.contains("SANDY_CONFIG=/tmp/sandy/sandy.config.yaml"));
     }
 
     #[test]
     fn test_render_macos_plist_contains_required_fields() {
         let ctx = ServiceContext {
-            exe_path: PathBuf::from("/usr/local/bin/microclaw"),
-            working_dir: PathBuf::from("/tmp/microclaw"),
-            config_path: Some(PathBuf::from("/tmp/microclaw/microclaw.config.yaml")),
-            runtime_logs_dir: PathBuf::from("/tmp/microclaw/runtime/logs"),
+            exe_path: PathBuf::from("/usr/local/bin/sandy"),
+            working_dir: PathBuf::from("/tmp/sandy"),
+            config_path: Some(PathBuf::from("/tmp/sandy/sandy.config.yaml")),
+            runtime_logs_dir: PathBuf::from("/tmp/sandy/runtime/logs"),
         };
 
         let plist = render_macos_plist(&ctx);
         assert!(plist.contains("<key>Label</key>"));
         assert!(plist.contains(MAC_LABEL));
         assert!(plist.contains("<string>start</string>"));
-        assert!(plist.contains("MICROCLAW_GATEWAY"));
-        assert!(plist.contains("MICROCLAW_CONFIG"));
+        assert!(plist.contains("SANDY_GATEWAY"));
+        assert!(plist.contains("SANDY_CONFIG"));
     }
 
     #[test]
@@ -562,9 +560,9 @@ mod tests {
 
     #[test]
     fn test_resolve_runtime_logs_dir_fallback() {
-        let dir = resolve_runtime_logs_dir(Path::new("/tmp/microclaw"));
+        let dir = resolve_runtime_logs_dir(Path::new("/tmp/sandy"));
         assert!(
-            dir.ends_with("runtime/logs") || dir.ends_with("microclaw.data/runtime/logs"),
+            dir.ends_with("runtime/logs") || dir.ends_with("sandy.data/runtime/logs"),
             "unexpected logs dir: {}",
             dir.display()
         );

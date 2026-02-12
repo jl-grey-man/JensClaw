@@ -1,6 +1,6 @@
-use microclaw::config::Config;
-use microclaw::error::MicroClawError;
-use microclaw::{
+use sandy::config::Config;
+use sandy::error::MicroClawError;
+use sandy::{
     builtin_skills, config_wizard, db, gateway, logging, mcp, memory, setup, skills, telegram, web,
 };
 use std::path::Path;
@@ -10,10 +10,10 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn print_help() {
     println!(
-        r#"MicroClaw v{VERSION} — Agentic AI assistant for Telegram, WhatsApp & Discord
+        r#"Sandy v{VERSION} — ADHD Coach Bot for Telegram, WhatsApp & Discord
 
 USAGE:
-    microclaw <COMMAND>
+    sandy <COMMAND>
 
 COMMANDS:
     start       Start the bot (Telegram + optional WhatsApp/Discord)
@@ -41,19 +41,19 @@ FEATURES:
     - Sensitive path blacklisting for file tools
 
 SETUP:
-    1. Run: microclaw config
-       (or run microclaw start and follow auto-config on first launch)
+    1. Run: sandy config
+       (or run sandy start and follow auto-config on first launch)
     2. Edit sandy.config.yaml with required values:
 
        telegram_bot_token    Bot token from @BotFather
        api_key               LLM API key
        bot_username          Your bot's username (without @)
 
-    3. Run: microclaw start
+    3. Run: sandy start
 
 CONFIG FILE (sandy.config.yaml):
     Sandy reads configuration from sandy.config.yaml (or sandy.config.yml).
-    Override the path with MICROCLAW_CONFIG env var.
+    Override the path with SANDY_CONFIG env var.
     See sandy.config.example.yaml for all available fields.
 
     Core fields:
@@ -65,7 +65,7 @@ CONFIG FILE (sandy.config.yaml):
       llm_base_url           Custom base URL (optional)
 
     Runtime:
-      data_dir               Data root (runtime in ./microclaw.data/runtime, skills in ./microclaw.data/skills)
+      data_dir               Data root (runtime in ./sandy.data/runtime, skills in ./sandy.data/skills)
       working_dir            Default tool working directory (default: ./tmp)
       max_tokens             Max tokens per response (default: 8192)
       max_tool_iterations    Max tool loop iterations (default: 100)
@@ -89,22 +89,22 @@ MCP (optional):
     See https://modelcontextprotocol.io for details.
 
 EXAMPLES:
-    microclaw start          Start the bot
-    microclaw gateway install Install and enable gateway service
-    microclaw gateway status Show gateway service status
-    microclaw gateway logs 100 Show last 100 lines of gateway logs
-    microclaw config         Run interactive Q&A config flow
-    microclaw setup          Run full-screen setup wizard
-    microclaw version        Show version
-    microclaw help           Show this message
+    sandy start          Start the bot
+    sandy gateway install Install and enable gateway service
+    sandy gateway status Show gateway service status
+    sandy gateway logs 100 Show last 100 lines of gateway logs
+    sandy config         Run interactive Q&A config flow
+    sandy setup          Run full-screen setup wizard
+    sandy version        Show version
+    sandy help           Show this message
 
 ABOUT:
-    https://microclaw.ai"#
+    Sandy - ADHD Coach Bot"#
     );
 }
 
 fn print_version() {
-    println!("microclaw {VERSION}");
+    println!("sandy {VERSION}");
 }
 
 fn move_path(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -231,7 +231,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Err(e) => return Err(e.into()),
     };
-    info!("Starting MicroClaw bot...");
+    info!("Starting Sandy bot...");
 
     let data_root_dir = config.data_root_dir();
     let runtime_data_dir = config.runtime_data_dir();
@@ -239,7 +239,7 @@ async fn main() -> anyhow::Result<()> {
     migrate_legacy_runtime_layout(&data_root_dir, Path::new(&runtime_data_dir));
     builtin_skills::ensure_builtin_skills(&data_root_dir)?;
 
-    if std::env::var("MICROCLAW_GATEWAY").is_ok() {
+    if std::env::var("SANDY_GATEWAY").is_ok() {
         logging::init_logging(&runtime_data_dir)?;
     } else {
         logging::init_console_logging();

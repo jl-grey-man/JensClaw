@@ -121,6 +121,8 @@ pub struct Config {
     pub discord_allowed_channels: Vec<u64>,
     #[serde(default)]
     pub show_thinking: bool,
+    #[serde(default)]
+    pub tavily_api_key: Option<String>,
     // Sandy's Web UI port
     #[serde(default = "default_web_port")]
     pub web_port: u16,

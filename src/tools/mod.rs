@@ -1,6 +1,8 @@
 pub mod activate_skill;
+pub mod agent_factory;
 pub mod agent_management;
 pub mod bash;
+pub mod execute_workflow;
 pub mod browser;
 pub mod create_skill;
 pub mod edit_file;
@@ -71,7 +73,7 @@ impl ToolAuthContext {
     }
 }
 
-const AUTH_CONTEXT_KEY: &str = "__microclaw_auth";
+const AUTH_CONTEXT_KEY: &str = "__sandy_auth";
 
 pub fn auth_context_from_input(input: &serde_json::Value) -> Option<ToolAuthContext> {
     let ctx = input.get(AUTH_CONTEXT_KEY)?;
@@ -146,6 +148,11 @@ impl ToolRegistry {
         }
         let skills_data_dir = config.skills_data_dir();
         let tools: Vec<Box<dyn Tool>> = vec![
+            Box::new(agent_factory::AgentFactoryTool::new(&config.working_dir)),
+            Box::new(agent_management::SpawnAgentTool::new(config)),
+            Box::new(agent_management::ListAgentsTool::new()),
+            Box::new(agent_management::AgentStatusTool::new()),
+            Box::new(execute_workflow::ExecuteWorkflowTool::new(config)),
             Box::new(bash::BashTool::new(&config.working_dir)),
             Box::new(browser::BrowserTool::new(&config.data_dir)),
             Box::new(read_file::ReadFileTool::new(&config.working_dir)),
@@ -155,7 +162,7 @@ impl ToolRegistry {
             Box::new(grep::GrepTool::new(&config.working_dir)),
             Box::new(memory::ReadMemoryTool::new(&config.data_dir)),
             Box::new(web_fetch::WebFetchTool),
-            Box::new(web_search::WebSearchTool::new()),
+            Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
         ];
         ToolRegistry { tools }
@@ -182,7 +189,7 @@ impl ToolRegistry {
             Box::new(grep::GrepTool::new(&config.working_dir)),
             Box::new(memory::ReadMemoryTool::new(&config.data_dir)),
             Box::new(web_fetch::WebFetchTool),
-            Box::new(web_search::WebSearchTool::new()),
+            Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
         ];
         ToolRegistry { tools }
@@ -270,7 +277,7 @@ mod tests {
     #[test]
     fn test_auth_context_from_input() {
         let input = json!({
-            "__microclaw_auth": {
+            "__sandy_auth": {
                 "caller_chat_id": 123,
                 "control_chat_ids": [123, 999]
             }
@@ -284,7 +291,7 @@ mod tests {
     #[test]
     fn test_authorize_chat_access_denied() {
         let input = json!({
-            "__microclaw_auth": {
+            "__sandy_auth": {
                 "caller_chat_id": 100,
                 "control_chat_ids": []
             }
