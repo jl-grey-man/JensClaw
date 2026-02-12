@@ -2,12 +2,12 @@
 # Copy this file to sandy.config.yaml and fill in the required values
 
 # Telegram Bot Configuration
-telegram_bot_token: "8580808276:AAHDpZSVG3LynNXTXwLM6IMrF8hmN9VUquY"
+telegram_bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
 bot_username: "sandy_adhd_coach_bot"
 
 # LLM Configuration (OpenRouter with Claude Sonnet 4.5)
 llm_provider: "openrouter"
-api_key: "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"
+api_key: "YOUR_OPENROUTER_API_KEY"
 model: "anthropic/claude-sonnet-4.5"
 llm_base_url: "https://openrouter.ai/api/v1"
 

@@ -10,6 +10,10 @@ tmp/
 *.env
 .env.*
 
+# Config with secrets (use sandy.config.yaml.example as template)
+config/sandy.config.yaml
+sandy.config.yaml
+
 # Runtime files and logs
 *.log
 logs/
