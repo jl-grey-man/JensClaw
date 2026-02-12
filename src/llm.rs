@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
-use tracing::warn;
+use tracing::{error, warn};
 
 use std::collections::HashSet;
 
@@ -332,10 +332,11 @@ impl LlmProvider for OpenAiProvider {
             }
 
             let text = response.text().await.unwrap_or_default();
+            error!("OpenRouter error response: status={}, body={}", status, text);
             if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
-                return Err(MicroClawError::LlmApi(err.error.message));
+                return Err(MicroClawError::LlmApi(format!("OpenRouter: {} (HTTP {})", err.error.message, status)));
             }
-            return Err(MicroClawError::LlmApi(format!("HTTP {status}: {text}")));
+            return Err(MicroClawError::LlmApi(format!("OpenRouter HTTP {status}: {text}")));
         }
     }
 }
