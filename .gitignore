@@ -6,3 +6,6 @@ microclaw.data/*
 !microclaw.data/skills/**
 website/
 tmp/
+.env
+*.env
+.env.*

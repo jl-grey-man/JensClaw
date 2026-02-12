@@ -1325,6 +1325,7 @@ dependencies = [
  "crossterm",
  "glob",
  "include_dir",
+ "lazy_static",
  "ratatui",
  "regex",
  "reqwest",
@@ -1333,6 +1334,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "serenity",
+ "tavily",
  "teloxide",
  "thiserror 2.0.18",
  "tokio",
@@ -2494,6 +2496,17 @@ name = "takecell"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20f34339676cdcab560c9a82300c4c2581f68b9369aedf0fae86f2ff9565ff3e"
+
+[[package]]
+name = "tavily"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cb3ae3821be99e0cae0eb10531e720b43b2b55e7445565ea3496d692966b152"
+dependencies = [
+ "reqwest",
+ "serde",
+ "tokio",
+]
 
 [[package]]
 name = "teloxide"

@@ -26,6 +26,7 @@ urlencoding = "2"
 base64 = "0.22"
 chrono-tz = "0.10"
 lazy_static = "1.4"
+tavily = "2.1"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }

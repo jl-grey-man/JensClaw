@@ -144,7 +144,42 @@ When User says:
 - "This is for my fitness goal" → Link to existing goal
 - "Done with the report" → Find and mark complete
 
-### 4. ADHD-Specific Features
+### 4. Web Search (Tavily API)
+
+**Tool:** `web_search`
+
+Sandy searches the web using the Tavily API, which provides structured, reliable search results with source quality scores.
+
+**Features:**
+- **Structured Results:** JSON format with title, URL, content, and relevance score
+- **Search Depth:** `basic` (fast) or `advanced` (thorough) modes
+- **Domain Filtering:** Include or exclude specific domains
+- **Reliable:** API-based, won't break from HTML changes
+- **Research-Focused:** Built for AI/LLM applications
+
+**Parameters:**
+- `query` (required) - What to search for
+- `search_depth` - `"basic"` (default) or `"advanced"`
+- `max_results` - Number of results (1-20, default: 5)
+- `include_domains` - List of domains to include (e.g., `["github.com", "reddit.com"]`)
+- `exclude_domains` - List of domains to exclude
+
+**When to Use:**
+- User asks: "Search for...", "Find information about...", "What's the latest on..."
+- Research tasks requiring factual, sourced information
+- Finding specific tools, libraries, or resources
+- Current events and news
+
+**Example Usage:**
+```
+User: "Search for ADHD productivity tools"
+→ web_search: {query: "ADHD productivity tools", max_results: 5}
+→ Sandy reports findings with URLs and source quality scores
+```
+
+**Important:** The Tavily API key must be set in the environment variable `TAVILY_API_KEY` (stored in `.env` file, never committed to git).
+
+### 5. ADHD-Specific Features
 
 **Energy Awareness:**
 - Track energy patterns through observations (not separate field)

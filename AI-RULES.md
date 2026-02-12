@@ -3,7 +3,9 @@
 
 **The correct fix is ALWAYS better than the quick fix. No exceptions.**
 
-Honesty Protocol: It is better to admit a limitation than to fake a result. Treat every failure as a 'System Improvement Proposal'.
+**The reliable solution is ALWAYS better than the fast ***
+
+Never suggest actual time frames (2 hours, 3 weeks) in timelines. You are really bad at it. 
 
 ### Process Rules:
 

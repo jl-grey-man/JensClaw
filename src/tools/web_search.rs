@@ -1,10 +1,24 @@
 use async_trait::async_trait;
 use serde_json::json;
+use std::env;
+use std::time::Duration;
+use tavily::{Tavily, SearchRequest};
 
 use super::{schema_object, Tool, ToolResult};
 use crate::claude::ToolDefinition;
 
 pub struct WebSearchTool;
+
+impl WebSearchTool {
+    pub fn new() -> Self {
+        Self
+    }
+
+    fn get_api_key() -> Result<String, String> {
+        env::var("TAVILY_API_KEY")
+            .map_err(|_| "TAVILY_API_KEY environment variable not set. Add it to your .env file.".to_string())
+    }
+}
 
 #[async_trait]
 impl Tool for WebSearchTool {
@@ -15,13 +29,38 @@ impl Tool for WebSearchTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "web_search".into(),
-            description: "Search the web using DuckDuckGo. Returns titles, URLs, and snippets."
+            description: "Search the web using Tavily API. Returns structured results with titles, URLs, content, and source quality scores."
                 .into(),
             input_schema: schema_object(
                 json!({
                     "query": {
                         "type": "string",
                         "description": "The search query"
+                    },
+                    "search_depth": {
+                        "type": "string",
+                        "description": "Search depth: 'basic' (fast) or 'advanced' (thorough). Default: 'basic'.",
+                        "enum": ["basic", "advanced"],
+                        "default": "basic"
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (1-20). Default: 5.",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 5
+                    },
+                    "include_domains": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional: List of domains to include in search (e.g., ['github.com', 'reddit.com'])",
+                        "default": []
+                    },
+                    "exclude_domains": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional: List of domains to exclude from search",
+                        "default": []
                     }
                 }),
                 &["query"],
@@ -35,73 +74,108 @@ impl Tool for WebSearchTool {
             None => return ToolResult::error("Missing required parameter: query".into()),
         };
 
-        match search_ddg(query).await {
-            Ok(results) => {
-                if results.is_empty() {
-                    ToolResult::success("No results found.".into())
-                } else {
-                    ToolResult::success(results)
-                }
-            }
-            Err(e) => ToolResult::error(format!("Search failed: {e}")),
+        let search_depth = input.get("search_depth")
+            .and_then(|v| v.as_str())
+            .unwrap_or("basic");
+
+        let max_results = input.get("max_results")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(5) as i32;
+
+        let include_domains: Vec<String> = input.get("include_domains")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter()
+                .filter_map(|val| val.as_str().map(|s| s.to_string()))
+                .collect())
+            .unwrap_or_default();
+
+        let exclude_domains: Vec<String> = input.get("exclude_domains")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter()
+                .filter_map(|val| val.as_str().map(|s| s.to_string()))
+                .collect())
+            .unwrap_or_default();
+
+        let api_key = match Self::get_api_key() {
+            Ok(key) => key,
+            Err(e) => return ToolResult::error(e),
+        };
+
+        match search_tavily(&api_key, query, search_depth, max_results, include_domains, exclude_domains).await {
+            Ok(results) => ToolResult::success(results),
+            Err(e) => ToolResult::error(format!("Search failed: {}", e)),
         }
     }
 }
 
-async fn search_ddg(query: &str) -> Result<String, String> {
-    let encoded = urlencoding::encode(query);
-    let url = format!("https://html.duckduckgo.com/html/?q={encoded}");
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .redirect(reqwest::redirect::Policy::limited(5))
+async fn search_tavily(
+    api_key: &str,
+    query: &str,
+    search_depth: &str,
+    max_results: i32,
+    include_domains: Vec<String>,
+    exclude_domains: Vec<String>,
+) -> Result<String, String> {
+    // Build Tavily client
+    let tavily = Tavily::builder(api_key)
+        .timeout(Duration::from_secs(60))
+        .max_retries(3)
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to build Tavily client: {}", e))?;
 
-    let resp = client
-        .get(&url)
-        .header("User-Agent", "MicroClaw/1.0")
-        .send()
+    // Build search request with chained builder pattern
+    let mut request = SearchRequest::new(api_key, query)
+        .search_depth(search_depth)
+        .max_results(max_results);
+
+    // Add domain filters if specified
+    if !include_domains.is_empty() {
+        request = request.include_domains(&include_domains);
+    }
+    if !exclude_domains.is_empty() {
+        request = request.exclude_domains(&exclude_domains);
+    }
+
+    // Execute search
+    let response = tavily.call(&request)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Tavily API error: {}", e))?;
 
-    let body = resp.text().await.map_err(|e| e.to_string())?;
+    Ok(format_response(&response))
+}
 
-    // Parse results using regex
-    // DuckDuckGo HTML results have <a class="result__a" href="...">title</a>
-    // and <a class="result__snippet">snippet</a>
-    let link_re =
-        regex::Regex::new(r#"<a[^>]+class="result__a"[^>]+href="([^"]*)"[^>]*>(.*?)</a>"#).unwrap();
-    let snippet_re = regex::Regex::new(r#"<a[^>]+class="result__snippet"[^>]*>(.*?)</a>"#).unwrap();
-    let tag_re = regex::Regex::new(r"<[^>]+>").unwrap();
-
-    let links: Vec<(String, String)> = link_re
-        .captures_iter(&body)
-        .map(|cap| {
-            let href = cap[1].to_string();
-            let title = tag_re.replace_all(&cap[2], "").trim().to_string();
-            (href, title)
-        })
-        .collect();
-
-    let snippets: Vec<String> = snippet_re
-        .captures_iter(&body)
-        .map(|cap| tag_re.replace_all(&cap[1], "").trim().to_string())
-        .collect();
-
+fn format_response(response: &tavily::SearchResponse) -> String {
     let mut output = String::new();
-    for (i, (href, title)) in links.iter().enumerate().take(8) {
-        let snippet = snippets.get(i).map(|s| s.as_str()).unwrap_or("");
+    
+    output.push_str(&format!("Query: {}\n", response.query));
+    
+    if let Some(ref answer) = response.answer {
+        output.push_str(&format!("Answer: {}\n\n", answer));
+    }
+    
+    output.push_str(&format!("Results ({} total):\n\n", response.results.len()));
+
+    for (i, result) in response.results.iter().enumerate() {
         output.push_str(&format!(
-            "{}. {}\n   {}\n   {}\n\n",
+            "{}. {}\n   URL: {}\n   Content: {}\n   Score: {:.2}\n\n",
             i + 1,
-            title,
-            href,
-            snippet
+            result.title,
+            result.url,
+            result.content.chars().take(300).collect::<String>(),
+            result.score
         ));
     }
 
-    Ok(output)
+    if let Some(ref images) = response.images {
+        if !images.is_empty() {
+            output.push_str(&format!("\nImages ({} found):\n", images.len()));
+            for (i, img) in images.iter().enumerate() {
+                output.push_str(&format!("  {}. {}\n", i + 1, img));
+            }
+        }
+    }
+
+    output
 }
 
 #[cfg(test)]
@@ -111,19 +185,21 @@ mod tests {
 
     #[test]
     fn test_web_search_definition() {
-        let tool = WebSearchTool;
+        let tool = WebSearchTool::new();
         assert_eq!(tool.name(), "web_search");
         let def = tool.definition();
         assert_eq!(def.name, "web_search");
-        assert!(def.description.contains("DuckDuckGo"));
+        assert!(def.description.contains("Tavily"));
         assert!(def.input_schema["properties"]["query"].is_object());
+        assert!(def.input_schema["properties"]["search_depth"].is_object());
+        assert!(def.input_schema["properties"]["max_results"].is_object());
         let required = def.input_schema["required"].as_array().unwrap();
         assert!(required.iter().any(|v| v == "query"));
     }
 
     #[tokio::test]
     async fn test_web_search_missing_query() {
-        let tool = WebSearchTool;
+        let tool = WebSearchTool::new();
         let result = tool.execute(json!({})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Missing required parameter: query"));
@@ -131,9 +207,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_web_search_null_query() {
-        let tool = WebSearchTool;
+        let tool = WebSearchTool::new();
         let result = tool.execute(json!({"query": null})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Missing required parameter: query"));
+    }
+
+    #[test]
+    fn test_api_key_not_set() {
+        // Temporarily clear the env var for testing
+        let original = env::var("TAVILY_API_KEY").ok();
+        env::remove_var("TAVILY_API_KEY");
+        
+        let result = WebSearchTool::get_api_key();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("TAVILY_API_KEY environment variable not set"));
+        
+        // Restore if it existed
+        if let Some(key) = original {
+            env::set_var("TAVILY_API_KEY", key);
+        }
     }
 }
