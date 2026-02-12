@@ -1,0 +1,25 @@
+[Unit]
+Description=Sandy ADHD Coach Bot
+After=network.target
+
+[Service]
+Type=simple
+User=jens
+WorkingDirectory=/home/jens/sandy
+Environment="RUST_LOG=info"
+# Load environment variables from .env file
+EnvironmentFile=/home/jens/sandy/.env
+
+# Start Sandy
+ExecStart=/home/jens/sandy/target/release/microclaw start
+
+# Restart on failure
+Restart=always
+RestartSec=10
+
+# Auto-update: Run updater script in background
+# The updater checks GitHub every 5 minutes and restarts this service if updates found
+ExecStartPre=/bin/bash -c 'if [ -f /home/jens/sandy/scripts/auto-update.sh ]; then /home/jens/sandy/scripts/auto-update.sh & fi'
+
+[Install]
+WantedBy=multi-user.target
