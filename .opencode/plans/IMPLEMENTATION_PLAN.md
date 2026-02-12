@@ -41,17 +41,20 @@
 - ✅ **Watchdog Logs Fixed** - Logs now correctly placed in `~/sandy/logs/` directory
 - ✅ **.gitignore Updated** - Added runtime file patterns (*.log, logs/, .cache/, runtime/)
 
-### Active Issue 🔴
+### Resolved Issues ✅
 
-**OpenRouter API Error - INVESTIGATION IN PROGRESS**
+**OpenRouter API Error - RESOLVED**
 - **Error:** "Provider returned error" on every Telegram message
-- **Status:** Headers and API key fixed, waiting for deploy to see actual error message
-- **Next Step:** Check logs after next `sandy update` to see detailed error response
-- **Impact:** Sandy cannot process messages until resolved
+- **Root Cause:** OpenRouter can return HTTP 200 with error payload in body; old code only checked HTTP status codes
+- **Fixes Applied:**
+  - ✅ Added detection for error objects in HTTP 200 responses (`src/llm.rs`)
+  - ✅ Added response body logging on parse failures
+  - ✅ Improved error logging with `{:?}` debug format (`src/telegram.rs`)
+  - ✅ Upgraded model from `anthropic/claude-3.5-sonnet` to `anthropic/claude-sonnet-4.5` (newer, cheaper: $3/$15 vs $6/$30 per M tokens)
 
-### Development Timeline Impact
+### Development Timeline
 
-Phase 0 and Phase 2 are complete. The API issue must be resolved before continuing with Phase 3-7 (Skills, Agent Execution, etc.). Current focus is on getting Sandy operational again.
+Phase 0 and Phase 2 are complete. Sandy is operational. Ready to continue with Phase 3-7 (Skills, Agent Execution, etc.).
 
 ---
 

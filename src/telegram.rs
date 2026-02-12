@@ -364,7 +364,7 @@ async fn handle_message(
         }
         Err(e) => {
             typing_handle.abort();
-            error!("Error processing message: {}", e);
+            error!("Error processing message: {:?}", e);
             let _ = bot.send_message(msg.chat.id, format!("Error: {e}")).await;
         }
     }

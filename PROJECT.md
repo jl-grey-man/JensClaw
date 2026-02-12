@@ -17,7 +17,7 @@
 ```
 User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
                                     ↓
-                         LLM (OpenRouter + Claude 3.5 Sonnet)
+                         LLM (OpenRouter + Claude Sonnet 4.5)
                                     ↓
                          Tools (tracking, patterns, reminders)
                                     ↓
@@ -29,7 +29,7 @@ User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
 ### Tech Stack
 - **Language:** Rust (JensClaw fork of JensGrey's MicroClaw)
 - **Database:** SQLite for scheduled tasks, JSON files for user data
-- **LLM:** OpenRouter with Claude 3.5 Sonnet
+- **LLM:** OpenRouter with Claude Sonnet 4.5
 - **Interfaces:** Telegram (primary), Web UI (dashboard)
 - **Storage:** File-based (OpenClaw style) - SOUL.md, AGENTS.md, patterns.json, tracking.json
 
@@ -328,11 +328,7 @@ Edit `microclaw.config.yaml`:
 - **Agent persistence** - Option to keep agents with accumulated knowledge
 
 ### Known Issues ⚠️
-- **OpenRouter API Error** - "Provider returned error" - Investigation in progress
-  - Headers added (HTTP-Referer, X-Title) ✅
-  - API key updated ✅  
-  - Detailed logging added ✅
-  - **Status:** Waiting for next deploy to see actual error message
+- ~~**OpenRouter API Error** - "Provider returned error"~~ **FIXED** - Upgraded model from `anthropic/claude-3.5-sonnet` to `anthropic/claude-sonnet-4.5`, added error detection for HTTP 200 error responses, improved error logging
 - Reminders stored in both DB and JSON (sync risk, low for single-user)
 - Web UI needs page refresh for some updates (5-second polling)
 - No authentication on web UI (local use only)
@@ -411,8 +407,9 @@ MIT License - See LICENSE file
 ---
 
 **Last Updated:** February 12, 2026
-- OpenRouter API fixes (headers, key update, error logging)
-- Watchdog logs directory fix
-- Production troubleshooting in progress
+- Upgraded model to Claude Sonnet 4.5 (`anthropic/claude-sonnet-4.5`)
+- Fixed OpenRouter "Provider returned error" — improved error handling for HTTP 200 error responses
+- Fixed reminders using wrong year (2024) — system prompt now includes current date/time
+- Injected current UTC time into system prompt for accurate scheduling
 
-**Next Review:** After OpenRouter API issue resolved
+**Next Review:** After next feature implementation

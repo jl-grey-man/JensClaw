@@ -7,7 +7,7 @@
 ## Architecture
 
 ```
-User Message → Telegram → Sandy Bot → OpenRouter (Claude 3.5 Sonnet) → Tools → Response
+User Message → Telegram → Sandy Bot → OpenRouter (Claude Sonnet 4.5) → Tools → Response
                                     ↓
                               Files: SOUL.md, PATTERNS.json, TRACKING.json
 ```

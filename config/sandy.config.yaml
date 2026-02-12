@@ -5,10 +5,10 @@
 telegram_bot_token: "8580808276:AAHDpZSVG3LynNXTXwLM6IMrF8hmN9VUquY"
 bot_username: "sandy_adhd_coach_bot"
 
-# LLM Configuration (OpenRouter with Claude 3.5 Sonnet)
+# LLM Configuration (OpenRouter with Claude Sonnet 4.5)
 llm_provider: "openrouter"
 api_key: "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"
-model: "anthropic/claude-3.5-sonnet"
+model: "anthropic/claude-sonnet-4.5"
 llm_base_url: "https://openrouter.ai/api/v1"
 
 # Bot Behavior

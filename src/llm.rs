@@ -310,9 +310,19 @@ impl LlmProvider for OpenAiProvider {
 
             let status = response.status();
 
+            let text = response.text().await?;
+
             if status.is_success() {
-                let text = response.text().await?;
+                // Check if the "successful" response is actually an error wrapped in 200
+                if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
+                    error!("OpenRouter returned 200 with error: {}", err.error.message);
+                    return Err(MicroClawError::LlmApi(format!(
+                        "OpenRouter provider error: {}",
+                        err.error.message
+                    )));
+                }
                 let oai: OaiResponse = serde_json::from_str(&text).map_err(|e| {
+                    error!("Failed to parse OpenRouter response body: {}", &text[..text.len().min(500)]);
                     MicroClawError::LlmApi(format!(
                         "Failed to parse OpenAI response: {e}\nBody: {text}"
                     ))
@@ -331,8 +341,7 @@ impl LlmProvider for OpenAiProvider {
                 continue;
             }
 
-            let text = response.text().await.unwrap_or_default();
-            error!("OpenRouter error response: status={}, body={}", status, text);
+            error!("OpenRouter error: status={}, body={}", status, &text[..text.len().min(1000)]);
             if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
                 return Err(MicroClawError::LlmApi(format!("OpenRouter: {} (HTTP {})", err.error.message, status)));
             }
