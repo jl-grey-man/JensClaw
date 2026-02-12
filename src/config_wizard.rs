@@ -376,7 +376,7 @@ fn default_config() -> Config {
         max_tokens: 8192,
         max_tool_iterations: 100,
         max_history_messages: 50,
-        data_dir: "./microclaw.data".into(),
+        data_dir: "./sandy.data".into(),
         working_dir: "./tmp".into(),
         openai_api_key: None,
         timezone: "UTC".into(),
@@ -497,7 +497,7 @@ pub fn run_config_wizard() -> Result<bool, MicroClawError> {
     let data_dir = match prompt_line("Data directory", Some(&existing.data_dir), false)? {
         Some(v) => {
             if v.trim().is_empty() {
-                "./microclaw.data".to_string()
+                "./sandy.data".to_string()
             } else {
                 v
             }

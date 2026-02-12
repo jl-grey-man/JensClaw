@@ -14,7 +14,7 @@ fn minimal_config() -> Config {
         max_tokens: 8192,
         max_tool_iterations: 25,
         max_history_messages: 50,
-        data_dir: "./microclaw.data".into(),
+        data_dir: "./sandy.data".into(),
         working_dir: "./tmp".into(),
         openai_api_key: None,
         timezone: "UTC".into(),
@@ -119,12 +119,10 @@ fn test_yaml_roundtrip() {
 #[test]
 fn test_data_dir_paths() {
     let mut config = minimal_config();
-    config.data_dir = "/opt/microclaw.data".into();
+    config.data_dir = "/opt/sandy.data".into();
 
-    assert!(config
-        .runtime_data_dir()
-        .ends_with("microclaw.data/runtime"));
-    assert!(config.skills_data_dir().ends_with("microclaw.data/skills"));
+    assert!(config.runtime_data_dir().ends_with("sandy.data/runtime"));
+    assert!(config.skills_data_dir().ends_with("sandy.data/skills"));
 }
 
 #[test]

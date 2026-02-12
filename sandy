@@ -24,18 +24,16 @@ show_help() {
 
 📁 LOCATIONS:
   Sandy Code:     ~/sandy/
-  Data Files:     ~/sandy/soul/data/
+  Data Files:     ~/sandy/sandy.data/
   User Files:     /mnt/storage/
-  Logs:           ~/sandy/logs/
+  Logs:           ~/sandy/sandy.data/runtime/logs/
 
 📝 KEY LOG FILES:
-  Watchdog Logs:  ~/sandy/logs/watchdog.log
-  Sandy Output:   ~/sandy/logs/sandy.log
+  Sandy Runtime:  ~/sandy/sandy.data/runtime/logs/microclaw-YYYY-MM-DD-HH.log
   Activity:       ~/sandy/soul/data/runtime/activity_log.json
 
 🔄 AUTO-UPDATE:
-  Status:         ps aux | grep watchdog
-  Last Check:     tail -1 ~/sandy/logs/watchdog.log
+  Status:         ps aux | grep sandy
   Config:         crontab -l | grep sandy
 
 💡 QUICK TIPS:
@@ -70,15 +68,28 @@ case "${1:-help}" in
     logs|log|l)
         echo "📊 Showing Sandy logs (Ctrl+C to exit)..."
         echo ""
-        if [ -f ~/sandy/logs/watchdog.log ]; then
-            echo "=== Watchdog Logs (auto-update) ==="
-            tail -f ~/sandy/logs/watchdog.log 2>/dev/null &
-            TAIL_PID=$!
-            sleep 0.5
-            read -p "Press Enter to stop viewing..."
-            kill $TAIL_PID 2>/dev/null
+        
+        # Find the actual Sandy runtime logs directory
+        SANDY_LOG_DIR="$HOME/sandy/sandy.data/runtime/logs"
+        
+        if [ -d "$SANDY_LOG_DIR" ]; then
+            # Find the most recent log file
+            LATEST_LOG=$(ls -t "$SANDY_LOG_DIR"/microclaw-*.log 2>/dev/null | head -1)
+            if [ -f "$LATEST_LOG" ]; then
+                echo "=== Sandy Runtime Logs: $(basename $LATEST_LOG) ==="
+                tail -n 50 -f "$LATEST_LOG" 2>/dev/null &
+                TAIL_PID=$!
+                sleep 0.5
+                read -p "Press Enter to stop viewing..."
+                kill $TAIL_PID 2>/dev/null
+            else
+                echo "No log files found in $SANDY_LOG_DIR"
+                echo "Sandy may not have started logging yet."
+            fi
         else
-            echo "No logs found yet. Logs will appear after Sandy starts."
+            echo "No logs found yet."
+            echo "Expected location: $SANDY_LOG_DIR"
+            echo "Logs will appear after Sandy starts and processes activity."
         fi
         ;;
     

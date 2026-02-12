@@ -315,7 +315,7 @@ impl SetupApp {
                     value: existing
                         .get("DATA_DIR")
                         .cloned()
-                        .unwrap_or_else(|| "./microclaw.data".into()),
+                        .unwrap_or_else(|| "./sandy.data".into()),
                     required: false,
                     secret: false,
                 },
@@ -461,7 +461,7 @@ impl SetupApp {
 
         let data_dir = self.field_value("DATA_DIR");
         let dir = if data_dir.is_empty() {
-            "./microclaw.data".to_string()
+            "./sandy.data".to_string()
         } else {
             data_dir
         };
@@ -690,7 +690,7 @@ impl SetupApp {
             "LLM_BASE_URL" => find_provider_preset(&provider)
                 .map(|p| p.default_base_url.to_string())
                 .unwrap_or_default(),
-            "DATA_DIR" => "./microclaw.data".into(),
+            "DATA_DIR" => "./sandy.data".into(),
             "TIMEZONE" => "UTC".into(),
             "WORKING_DIR" => "./tmp".into(),
             _ => String::new(),
@@ -926,7 +926,7 @@ fn save_config_yaml(
     let data_dir = values
         .get("DATA_DIR")
         .cloned()
-        .unwrap_or_else(|| "./microclaw.data".into());
+        .unwrap_or_else(|| "./sandy.data".into());
     yaml.push_str(&format!("data_dir: \"{}\"\n", data_dir));
     let tz = values
         .get("TIMEZONE")

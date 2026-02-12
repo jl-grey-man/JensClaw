@@ -1,9 +1,7 @@
 /target
 microclaw.config.yaml
 microclaw.config.yaml.*
-microclaw.data/*
-!microclaw.data/skills/
-!microclaw.data/skills/**
+sandy.data/
 website/
 tmp/
 .env

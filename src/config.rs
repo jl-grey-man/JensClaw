@@ -266,7 +266,7 @@ mod tests {
             max_tokens: 8192,
             max_tool_iterations: 100,
             max_history_messages: 50,
-            data_dir: "./microclaw.data".into(),
+            data_dir: "./sandy.data".into(),
             working_dir: "./tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
@@ -311,7 +311,7 @@ mod tests {
         config.allowed_groups = vec![123, 456];
         config.control_chat_ids = vec![999];
         assert_eq!(config.model, "claude-sonnet-4-5-20250929");
-        assert_eq!(config.data_dir, "./microclaw.data");
+        assert_eq!(config.data_dir, "./sandy.data");
         assert_eq!(config.working_dir, "./tmp");
         assert_eq!(config.openai_api_key.as_deref(), Some("sk-test"));
         assert_eq!(config.timezone, "US/Eastern");
@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(config.llm_provider, "anthropic");
         assert_eq!(config.max_tokens, 8192);
         assert_eq!(config.max_tool_iterations, 100);
-        assert_eq!(config.data_dir, "./microclaw.data");
+        assert_eq!(config.data_dir, "./sandy.data");
         assert_eq!(config.working_dir, "./tmp");
         assert_eq!(config.timezone, "UTC");
     }
@@ -362,23 +362,21 @@ mod tests {
     #[test]
     fn test_runtime_and_skills_dirs_from_root_data_dir() {
         let mut config = test_config();
-        config.data_dir = "./microclaw.data".into();
-        assert!(config
-            .runtime_data_dir()
-            .ends_with("microclaw.data/runtime"));
-        assert!(config.skills_data_dir().ends_with("microclaw.data/skills"));
+        config.data_dir = "./sandy.data".into();
+        assert!(config.runtime_data_dir().ends_with("sandy.data/runtime"));
+        assert!(config.skills_data_dir().ends_with("sandy.data/skills"));
     }
 
     #[test]
     fn test_runtime_and_skills_dirs_from_runtime_data_dir() {
         let mut config = test_config();
-        config.data_dir = "./microclaw.data/runtime".into();
+        config.data_dir = "./sandy.data/runtime".into();
         assert!(config
             .runtime_data_dir()
-            .ends_with("microclaw.data/runtime/runtime"));
+            .ends_with("sandy.data/runtime/runtime"));
         assert!(config
             .skills_data_dir()
-            .ends_with("microclaw.data/runtime/skills"));
+            .ends_with("sandy.data/runtime/skills"));
     }
 
     #[test]
