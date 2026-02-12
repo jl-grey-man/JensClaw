@@ -412,6 +412,146 @@ The `sub_agent` tool DOES work - it spawns real LLM subprocesses. Use this for b
 
 ---
 
+## Hard Rails Rebuild (New Architecture)
+
+Implementation of the Brain/Hands architecture per architecture.md
+
+### Phase 1: Foundation ✅ COMPLETED
+
+**Goal:** Create storage structure and core files for Hard Rails architecture
+
+**Completed:**
+- [x] **Storage Directory Structure**
+  - Created `storage/agents/` - Agent JSON configurations
+  - Created `storage/tasks/` - Job workspaces
+  - Created `storage/memory/` - Long-term data
+  - Added .gitkeep files to preserve structure
+
+- [x] **Core Documentation**
+  - Created TOOLS.md - Definitive tool reference with 8 categories
+  - Documented all parameters, validation rules, environment requirements
+  - Created prompts/guard_rails.txt - Immutable safety DNA
+  - Safety protocols: restricted scope, file-only output, no chit-chat, tool-only
+
+- [x] **Agent Configurations**
+  - Created storage/agents/zilla.json - Research agent
+  - Created storage/agents/gonza.json - Writer agent
+  - Defined tool restrictions and constraints for each
+
+- [x] **Example Workflow**
+  - Created storage/tasks/job_example/README.md
+  - Documents Zilla → Verify → Gonza sequential flow
+  - Shows verification checkpoints
+
+- [x] **Documentation Updates**
+  - Updated PROJECT.md with new storage/ structure
+  - Added TOOLS.md and prompts/ to project tree
+
+**Status:** Foundation ready for Phase 2
+**Next:** Phase 2 - Hardened File Operations
+
+### Phase 2: Hardened File Operations ⏳ PENDING
+
+**Goal:** Bulletproof file operations with strict path validation
+
+**Tasks:**
+- [ ] Create src/tools/file_ops.rs
+  - read_file() with path validation
+  - write_file() with atomic writes (temp → verify → rename)
+  - verify_file_exists() - Check before claiming success
+  - list_directory() - Safe directory listing
+  - create_job_folder() - Workspace creation
+  
+- [ ] Hard-coded Path Guards
+  - Validate all paths against allowed roots
+  - Prevent directory traversal (../../../etc/passwd)
+  - Allowed: /storage/, /mnt/storage/, /tmp/
+  
+- [ ] Atomic Write Implementation
+  - Write to temp file first
+  - Verify write succeeded
+  - Atomic rename on success
+  - Prevent partial file corruption
+  
+- [ ] Integration Testing
+  - Test path traversal attacks
+  - Verify atomic writes work
+  - Test permission edge cases
+
+**Dependencies:** Phase 1
+**Next:** Phase 3 - Skill Scripts
+
+### Phase 3: The Hands - Skill Scripts ⏳ PENDING
+
+**Goal:** Create Python scripts that actually execute (not LLM hallucinations)
+
+**Tasks:**
+- [ ] Setup Python Virtual Environment
+  - Create /storage/.venv/
+  - Install dependencies: tavily, requests
+  - All scripts run in venv isolation
+  
+- [ ] Create Journalistic Research Skill
+  - src/skills/journalistic-research/SKILL.md
+  - scripts/run_research.py
+  - Takes: query, output_path
+  - Uses Tavily API (real HTTP)
+  - Saves structured JSON
+  - Returns: "SUCCESS" or "ERROR"
+  
+- [ ] Create Journalistic Writing Skill
+  - src/skills/journalistic-writing/SKILL.md
+  - scripts/write_article.py
+  - Takes: input_path, output_path
+  - NO web access (reads file only)
+  - Transforms data to article format
+  - Saves formatted output
+  
+- [ ] Test End-to-End
+  - Run research script → Verify output file exists
+  - Run writing script → Verify article created
+  - Both scripts must produce real files
+
+**Dependencies:** Phase 2
+**Next:** Phase 4 - Real Agent Execution
+
+### Phase 4: Real Agent Execution ⏳ PENDING
+
+**Goal:** Fix the broken agent system - make it actually execute work
+
+**Critical Issue:** Current spawn_agent only creates registry entries, never executes
+
+**Tasks:**
+- [ ] Rebuild spawn_agent using sub_agent as engine
+  - Load agent config from storage/agents/{id}.json
+  - Create job folder: storage/tasks/{job_id}/
+  - Call sub_agent with restricted tool set
+  - Monitor execution (blocking, not async)
+  - Verify output file exists before returning success
+  
+- [ ] Implement Sequential Workflow Support
+  - New tool: execute_workflow(steps)
+  - Zilla runs → VERIFY → Gonza runs → VERIFY
+  - If verification fails: stop workflow, report error
+  - No "I'll monitor" - actual blocking wait
+  
+- [ ] Verification After Every Step
+  - Check: File exists?
+  - Check: File size > 0?
+  - Check: File readable?
+  - Only proceed if all checks pass
+  
+- [ ] Integration Testing
+  - Test: "Research AI news" → Zilla executes → File verified
+  - Test: Zilla → Gonza workflow
+  - Test: Verification failure handling
+  - Test: Error propagation
+
+**Dependencies:** Phase 3
+**Status:** CRITICAL - This fixes the fake agent system from Phase 0 audit
+
+---
+
 ## Current Sprint: Week of Feb 11, 2026
 
 ### This Week's Goals:
