@@ -700,7 +700,11 @@ fn build_system_prompt(
         prompt.push_str(agents);
         prompt.push_str("\n\n---\n\n");
     }
-    
+
+    // Cache break marker: everything above is static (cacheable),
+    // everything below is dynamic (changes per request)
+    prompt.push_str("\n---CACHE_BREAK---\n");
+
     // Add base system capabilities
     let current_time = chrono::Utc::now().to_rfc3339();
     prompt.push_str(&format!(

@@ -157,8 +157,6 @@ impl ToolRegistry {
             Box::new(web_fetch::WebFetchTool),
             Box::new(web_search::WebSearchTool::new()),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
-            Box::new(web_search::WebSearchTool::new()),
-            Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
         ];
         ToolRegistry { tools }
     }

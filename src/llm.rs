@@ -258,6 +258,14 @@ struct OaiFunction {
 struct OaiUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
+    #[serde(default)]
+    prompt_tokens_details: Option<OaiPromptTokensDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OaiPromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -319,9 +327,8 @@ impl LlmProvider for OpenAiProvider {
 
             let text = response.text().await?;
 
-            // Always log the response for debugging
-            info!("OpenRouter response: status={}, body_len={}, body_preview={}",
-                status, text.len(), &text[..text.len().min(300)]);
+            // Log response status (body logged on error only)
+            info!("OpenRouter response: status={}, body_len={}", status, text.len());
 
             if status.is_success() {
                 // Try parsing as a normal response first
@@ -390,9 +397,28 @@ fn translate_messages_to_oai(system: &str, messages: &[Message]) -> Vec<serde_js
 
     let mut out: Vec<serde_json::Value> = Vec::new();
 
-    // System message
+    // System message — split on cache marker for Anthropic prompt caching
     if !system.is_empty() {
-        out.push(json!({"role": "system", "content": system}));
+        const CACHE_MARKER: &str = "\n---CACHE_BREAK---\n";
+        if let Some(pos) = system.find(CACHE_MARKER) {
+            let static_part = &system[..pos];
+            let dynamic_part = &system[pos + CACHE_MARKER.len()..];
+            // Use content array format with cache_control on the static part
+            let mut content = vec![
+                json!({
+                    "type": "text",
+                    "text": static_part,
+                    "cache_control": {"type": "ephemeral"}
+                }),
+            ];
+            if !dynamic_part.is_empty() {
+                content.push(json!({"type": "text", "text": dynamic_part}));
+            }
+            out.push(json!({"role": "system", "content": content}));
+        } else {
+            // No marker — send as plain string (backward compatible)
+            out.push(json!({"role": "system", "content": system}));
+        }
     }
 
     for msg in messages {
@@ -576,9 +602,16 @@ fn translate_oai_response(oai: OaiResponse) -> MessagesResponse {
         _ => Some("end_turn".into()),
     };
 
-    let usage = oai.usage.map(|u| Usage {
-        input_tokens: u.prompt_tokens,
-        output_tokens: u.completion_tokens,
+    let usage = oai.usage.map(|u| {
+        let cached = u.prompt_tokens_details.as_ref().map_or(0, |d| d.cached_tokens);
+        if cached > 0 {
+            info!("Token usage: prompt={}, completion={}, cached={}",
+                u.prompt_tokens, u.completion_tokens, cached);
+        }
+        Usage {
+            input_tokens: u.prompt_tokens,
+            output_tokens: u.completion_tokens,
+        }
     });
 
     MessagesResponse {
@@ -791,6 +824,7 @@ mod tests {
             usage: Some(OaiUsage {
                 prompt_tokens: 10,
                 completion_tokens: 5,
+                prompt_tokens_details: None,
             }),
         };
         let resp = translate_oai_response(oai);
