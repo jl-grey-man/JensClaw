@@ -3,7 +3,7 @@
 # Run this on your Pi with: nohup ./watchdog.sh &
 
 SANDY_DIR="/home/jens/sandy"
-LOG_FILE="/home/jens/sandy/watchdog.log"
+LOG_FILE="/home/jens/sandy/logs/watchdog.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -35,7 +35,8 @@ while true; do
             log "Build successful, starting Sandy..."
             
             # Start Sandy in background
-            nohup ./target/release/microclaw start >> "$LOG_FILE" 2>&1 &
+            mkdir -p logs
+            nohup ./target/release/microclaw start >> logs/sandy.log 2>&1 &
             
             log "Sandy restarted with new version"
         else
@@ -46,7 +47,8 @@ while true; do
     # Check if Sandy is still running
     if ! pgrep -f "microclaw start" > /dev/null; then
         log "Sandy not running, restarting..."
-        nohup ./target/release/microclaw start >> "$LOG_FILE" 2>&1 &
+        mkdir -p logs
+        nohup ./target/release/microclaw start >> logs/sandy.log 2>&1 &
         log "Sandy restarted"
     fi
     

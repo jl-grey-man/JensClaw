@@ -300,6 +300,8 @@ impl LlmProvider for OpenAiProvider {
                 .http
                 .post(&self.chat_url)
                 .header("Content-Type", "application/json")
+                .header("HTTP-Referer", "https://github.com/jl-grey-man/JensClaw")
+                .header("X-Title", "Sandy ADHD Coach")
                 .json(&body);
             if !self.api_key.trim().is_empty() {
                 req = req.header("Authorization", format!("Bearer {}", self.api_key));
