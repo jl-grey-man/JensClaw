@@ -326,11 +326,17 @@ Edit `microclaw.config.yaml`:
 - **Agent persistence** - Option to keep agents with accumulated knowledge
 
 ### Known Issues ⚠️
+- **OpenRouter API Error** - "Provider returned error" - Investigation in progress
+  - Headers added (HTTP-Referer, X-Title) ✅
+  - API key updated ✅  
+  - Detailed logging added ✅
+  - **Status:** Waiting for next deploy to see actual error message
 - Reminders stored in both DB and JSON (sync risk, low for single-user)
 - Web UI needs page refresh for some updates (5-second polling)
 - No authentication on web UI (local use only)
 - ~~Reminders scheduled for 2024 instead of current year~~ **FIXED**
 - ~~Config file naming confusion~~ **FIXED** - Now supports `sandy.config.yaml`
+- ~~Watchdog logs in wrong directory~~ **FIXED** - Now uses `~/sandy/logs/`
 
 ## Future Vision
 
@@ -402,5 +408,9 @@ MIT License - See LICENSE file
 
 ---
 
-**Last Updated:** February 11, 2026 (Major update: Skill Builder, Agent Delegation, Self-Review, Document Management)
-**Next Review:** After each major feature completion
+**Last Updated:** February 12, 2026
+- OpenRouter API fixes (headers, key update, error logging)
+- Watchdog logs directory fix
+- Production troubleshooting in progress
+
+**Next Review:** After OpenRouter API issue resolved

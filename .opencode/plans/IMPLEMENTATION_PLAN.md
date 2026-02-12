@@ -10,6 +10,33 @@
 
 ---
 
+## Current Status (February 12, 2026)
+
+### Recent Fixes Completed ✅
+
+**Production Issues Fixed:**
+- ✅ **OpenRouter API Key Updated** - Changed from old revoked key to new valid key
+- ✅ **OpenRouter Headers Added** - Added HTTP-Referer and X-Title headers required by Anthropic
+- ✅ **Detailed Error Logging** - Added debug logging to capture actual OpenRouter error responses
+- ✅ **Watchdog Logs Fixed** - Logs now correctly placed in `~/sandy/logs/` directory
+- ✅ **.gitignore Updated** - Added runtime file patterns (*.log, logs/, .cache/, runtime/)
+
+### Active Issue 🔴
+
+**OpenRouter API Error - INVESTIGATION IN PROGRESS**
+- **Error:** "Provider returned error" on every Telegram message
+- **Status:** Headers and API key fixed, waiting for deploy to see actual error message
+- **Next Step:** Check logs after next `sandy update` to see detailed error response
+- **Impact:** Sandy cannot process messages until resolved
+
+### Development Timeline Impact
+
+The API issue must be resolved before continuing with Phase 1-7 implementation. Current focus is on getting Sandy operational again before rebuilding the agent system.
+
+---
+
+---
+
 ## Phase 0: Analysis & Audit ✅ COMPLETED
 
 **Status:** FINISHED - Truthful inventory created, false claims removed from documentation
