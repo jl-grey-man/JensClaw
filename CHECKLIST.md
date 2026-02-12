@@ -450,35 +450,50 @@ Implementation of the Brain/Hands architecture per architecture.md
 **Status:** Foundation ready for Phase 2
 **Next:** Phase 2 - Hardened File Operations
 
-### Phase 2: Hardened File Operations ⏳ PENDING
+### Phase 2: Hardened File Operations [~] IN PROGRESS
 
 **Goal:** Bulletproof file operations with strict path validation
 
-**Tasks:**
-- [ ] Create src/tools/file_ops.rs
+**Completed:**
+- [x] **Create src/tools/file_ops.rs**
   - read_file() with path validation
   - write_file() with atomic writes (temp → verify → rename)
   - verify_file_exists() - Check before claiming success
   - list_directory() - Safe directory listing
   - create_job_folder() - Workspace creation
+  - safe_join() - Safe path joining
   
-- [ ] Hard-coded Path Guards
-  - Validate all paths against allowed roots
-  - Prevent directory traversal (../../../etc/passwd)
-  - Allowed: /storage/, /mnt/storage/, /tmp/
+- [x] **Hard-coded Path Guards**
+  - Validate all paths against allowed roots: /storage, /mnt/storage, /tmp
+  - Prevent directory traversal (../../../etc/passwd blocked)
+  - Canonicalizes paths to resolve symlinks
   
-- [ ] Atomic Write Implementation
-  - Write to temp file first
-  - Verify write succeeded
+- [x] **Atomic Write Implementation**
+  - Write to temp file first (.tmp extension)
+  - Verify content matches expected
   - Atomic rename on success
-  - Prevent partial file corruption
+  - Cleans up temp file if verification fails
+  - Prevents partial file corruption
   
-- [ ] Integration Testing
-  - Test path traversal attacks
-  - Verify atomic writes work
-  - Test permission edge cases
+- [x] **Integration with Existing Tools**
+  - Updated read_file tool to use file_ops validation
+  - Updated write_file tool to use file_ops atomic writes
+  - Dual validation: path_guard (existing) + file_ops (Hard Rails)
+  - Added mandatory verification after write
 
-**Dependencies:** Phase 1
+**In Progress / Remaining:**
+- [~] Comprehensive integration testing
+  - Test path traversal attacks (basic tests passing)
+  - Test atomic writes under various conditions
+  - Test concurrent write scenarios
+  - Benchmark performance vs non-atomic writes
+
+**Tests:**
+- Path validation tests (allowed, blocked, traversal attacks)
+- Safe path joining tests
+- All security tests passing
+
+**Status:** Core implementation complete, integrated into existing tools
 **Next:** Phase 3 - Skill Scripts
 
 ### Phase 3: The Hands - Skill Scripts ⏳ PENDING
