@@ -36,7 +36,7 @@ User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
 ```
 SandyNew/
 ├── PROJECT.md           ← You are here (main documentation)
-├── CHECKLIST.md         ← Development roadmap and tasks
+├── .opencode/plans/IMPLEMENTATION_PLAN.md  ← Development roadmap and rebuild plan
 ├── AI-RULES.md          ← Development standards and protocols
 ├── architecture.md      ← Hard Rails architecture specification
 ├── TOOLS.md             ← Definitive tool reference (The Constitution)
@@ -267,7 +267,7 @@ Sandy improves over time by:
 
 ### Required Reading for New Developers
 1. **PROJECT.md** (this file) - Overall project overview
-2. **CHECKLIST.md** - Development roadmap and current status
+2. **IMPLEMENTATION_PLAN.md** (`.opencode/plans/`) - Development roadmap, current status, and rebuild phases
 
 ### Reference Documents
 - **soul/SOUL.md** - Sandy's personality and ADHD expertise
@@ -300,7 +300,7 @@ Edit `microclaw.config.yaml`:
 2. Register in `src/tools/mod.rs`
 3. Update SOUL.md if affecting personality
 4. Update AGENTS.md if adding capabilities
-5. **Update PROJECT.md and CHECKLIST.md**
+5. **Update PROJECT.md and IMPLEMENTATION_PLAN.md**
 
 ## Current Capabilities
 
@@ -371,7 +371,7 @@ Edit `microclaw.config.yaml`:
 
 ### For New Developers
 1. Read PROJECT.md (this file) ← You are here
-2. Read CHECKLIST.md for current roadmap
+2. Read IMPLEMENTATION_PLAN.md (`.opencode/plans/`) for current roadmap and implementation status
 3. Review soul/SOUL.md to understand Sandy's personality
 4. Review soul/AGENTS.md to understand capabilities
 5. Run the bot: `cargo run -- start`
@@ -387,14 +387,14 @@ Edit `microclaw.config.yaml`:
 ## Contributing
 
 ### When Adding Features:
-1. **Always update documentation** - PROJECT.md and CHECKLIST.md
+1. **Always update documentation** - PROJECT.md and IMPLEMENTATION_PLAN.md
 2. Follow Rust conventions - see existing code in `src/`
 3. Add appropriate tools to `src/tools/mod.rs`
 4. Test thoroughly via Telegram and Web UI
 5. Update SOUL.md if changing personality/behavior
 
 ### When Fixing Bugs:
-1. Document the bug in CHECKLIST.md
+1. Document the bug in IMPLEMENTATION_PLAN.md under Current Status section
 2. Mark as completed when fixed
 3. Note any breaking changes
 
