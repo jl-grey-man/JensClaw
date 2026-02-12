@@ -5,7 +5,7 @@ use tracing::info;
 
 use crate::claude::ToolDefinition;
 
-use super::{schema_object, Tool, ToolResult};
+use super::{file_ops, schema_object, Tool, ToolResult};
 
 pub struct WriteFileTool {
     working_dir: PathBuf,
@@ -53,8 +53,14 @@ impl Tool for WriteFileTool {
         let resolved_path = super::resolve_tool_path(&self.working_dir, path);
         let resolved_path_str = resolved_path.to_string_lossy().to_string();
 
+        // First check with path_guard (existing validation)
         if let Err(msg) = crate::tools::path_guard::check_path(&resolved_path_str) {
             return ToolResult::error(msg);
+        }
+        
+        // Additional validation with file_ops (Hard Rails security)
+        if let Err(e) = file_ops::validate_path(&resolved_path) {
+            return ToolResult::error(format!("Path validation failed: {}", e));
         }
 
         let content = match input.get("content").and_then(|v| v.as_str()) {
@@ -64,17 +70,23 @@ impl Tool for WriteFileTool {
 
         info!("Writing file: {}", resolved_path.display());
 
-        if let Some(parent) = resolved_path.parent() {
-            if let Err(e) = tokio::fs::create_dir_all(parent).await {
-                return ToolResult::error(format!("Failed to create directories: {e}"));
-            }
-        }
-
-        match tokio::fs::write(&resolved_path, content).await {
+        // Use file_ops for atomic write (Hard Rails: temp → verify → rename)
+        match file_ops::write_file(&resolved_path, content) {
             Ok(()) => {
-                ToolResult::success(format!("Successfully wrote to {}", resolved_path.display()))
+                // Verify the file was written correctly (Hard Rails requirement)
+                match file_ops::verify_file_exists(&resolved_path) {
+                    Ok(true) => {
+                        ToolResult::success(format!("Successfully wrote to {} (verified)", resolved_path.display()))
+                    }
+                    Ok(false) => {
+                        ToolResult::error("Write succeeded but verification failed: file empty or not found".to_string())
+                    }
+                    Err(e) => {
+                        ToolResult::error(format!("Write succeeded but verification error: {}", e))
+                    }
+                }
             }
-            Err(e) => ToolResult::error(format!("Failed to write file: {e}")),
+            Err(e) => ToolResult::error(format!("Failed to write file: {}", e)),
         }
     }
 }

@@ -5,7 +5,7 @@ use tracing::info;
 
 use crate::claude::ToolDefinition;
 
-use super::{schema_object, Tool, ToolResult};
+use super::{file_ops, schema_object, Tool, ToolResult};
 
 pub struct ReadFileTool {
     working_dir: PathBuf,
@@ -57,8 +57,14 @@ impl Tool for ReadFileTool {
         let resolved_path = super::resolve_tool_path(&self.working_dir, path);
         let resolved_path_str = resolved_path.to_string_lossy().to_string();
 
+        // First check with path_guard (existing validation)
         if let Err(msg) = crate::tools::path_guard::check_path(&resolved_path_str) {
             return ToolResult::error(msg);
+        }
+        
+        // Additional validation with file_ops (Hard Rails security)
+        if let Err(e) = file_ops::validate_path(&resolved_path) {
+            return ToolResult::error(format!("Path validation failed: {}", e));
         }
 
         info!("Reading file: {}", resolved_path.display());
