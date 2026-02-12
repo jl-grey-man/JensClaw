@@ -30,7 +30,7 @@
 - ✅ Integrated into existing tools
 - ✅ All tests passing
 
-**Phase 3-7** - ⏳ PENDING (Blocked by API issue)
+**Phase 3-7** - ⏳ PENDING
 
 ### Recent Fixes Completed ✅
 
@@ -45,16 +45,32 @@
 
 **OpenRouter API Error - RESOLVED**
 - **Error:** "Provider returned error" on every Telegram message
-- **Root Cause:** OpenRouter can return HTTP 200 with error payload in body; old code only checked HTTP status codes
+- **Root Cause 1:** OpenRouter can return HTTP 200 with error payload in body; old code only checked HTTP status codes
+- **Root Cause 2:** OpenRouter routed requests to Google Vertex provider instead of Anthropic; Google Vertex rejected Sandy's tool-heavy requests
 - **Fixes Applied:**
   - ✅ Added detection for error objects in HTTP 200 responses (`src/llm.rs`)
   - ✅ Added response body logging on parse failures
   - ✅ Improved error logging with `{:?}` debug format (`src/telegram.rs`)
   - ✅ Upgraded model from `anthropic/claude-3.5-sonnet` to `anthropic/claude-sonnet-4.5` (newer, cheaper: $3/$15 vs $6/$30 per M tokens)
+  - ✅ **Forced Anthropic provider routing** - Added `"provider": {"order": ["Anthropic"], "allow_fallbacks": false}` to prevent Google Vertex fallback (`src/llm.rs`)
+  - ✅ Restructured error handling: parse OaiResponse first, then check for error on parse failure
+  - ✅ Added request logging (model, system_len, message count, max_tokens)
+
+### API Cost Optimization - COMPLETED ✅
+
+**Objective:** Reduce per-request token costs by caching static content and trimming unnecessary tokens.
+
+**Changes Applied:**
+- ✅ **Anthropic Prompt Caching** - Enabled via `cache_control: {"type": "ephemeral"}` on static system prompt content. Cache reads cost 0.10x input price (~90% savings on cached portion). Split system prompt with `---CACHE_BREAK---` marker between static (SOUL.md, AGENTS.md, IDENTITY.md) and dynamic (current time, chat_id, memory, skills) parts. (`src/telegram.rs`, `src/llm.rs`)
+- ✅ **System Prompt Trimmed** - AGENTS.md reduced from 496 lines (~15.6KB) to 77 lines (~2.3KB). Removed documentation for unregistered tools (patterns, tracking, agents). Archived to `soul/AGENTS_FUTURE.md`. (`soul/AGENTS.md`)
+- ✅ **Duplicate Tool Registrations Removed** - `web_search` and `activate_skill` were registered twice in `src/tools/mod.rs`. Removed duplicates.
+- ✅ **Cached Token Tracking** - Added `OaiPromptTokensDetails` struct and logging to verify caching works. (`src/llm.rs`)
+
+**Impact:** ~13KB fewer input tokens per request + ~90% savings on ~8KB static prompt via caching.
 
 ### Development Timeline
 
-Phase 0 and Phase 2 are complete. Sandy is operational. Ready to continue with Phase 3-7 (Skills, Agent Execution, etc.).
+Phase 0 and Phase 2 are complete. API cost optimization complete. Sandy is operational. Ready to continue with Phase 3-7 (Skills, Agent Execution, etc.).
 
 ---
 

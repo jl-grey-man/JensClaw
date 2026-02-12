@@ -32,7 +32,6 @@ User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
 - **LLM:** OpenRouter with Claude Sonnet 4.5
 - **Interfaces:** Telegram (primary), Web UI (dashboard)
 - **Storage:** File-based (OpenClaw style) - SOUL.md, AGENTS.md, patterns.json, tracking.json
-- **Cost Optimization:** Anthropic prompt caching enabled, trimmed system prompt
 - **Cost Optimization:** Anthropic prompt caching via OpenRouter, trimmed system prompt
 
 ## Project Structure
@@ -410,9 +409,10 @@ MIT License - See LICENSE file
 ---
 
 **Last Updated:** February 12, 2026
+- **API cost optimization:** Enabled Anthropic prompt caching (~90% savings on static system prompt), trimmed AGENTS.md from 15.6KB to 2.3KB, removed duplicate tool registrations
+- **OpenRouter provider routing:** Forced Anthropic provider to prevent Google Vertex fallback errors
 - Upgraded model to Claude Sonnet 4.5 (`anthropic/claude-sonnet-4.5`)
-- Fixed OpenRouter "Provider returned error" — improved error handling for HTTP 200 error responses
+- Improved error handling for HTTP 200 error responses with request/response logging
 - Fixed reminders using wrong year (2024) — system prompt now includes current date/time
-- Injected current UTC time into system prompt for accurate scheduling
 
 **Next Review:** After next feature implementation
