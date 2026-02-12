@@ -7,7 +7,7 @@ bot_username: "sandy_adhd_coach_bot"
 
 # LLM Configuration (OpenRouter with Claude 3.5 Sonnet)
 llm_provider: "openrouter"
-api_key: "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"
+api_key: "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"
 model: "anthropic/claude-3.5-sonnet"
 llm_base_url: "https://openrouter.ai/api/v1"
 
