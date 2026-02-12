@@ -152,6 +152,10 @@ MAIN CHECKLIST.
 - [x] Make tracking functions public (read_tracking, write_tracking)
 - [x] Add Datelike import for date parsing
 
+- [x] **Fix:** OpenRouter "Provider returned error"
+  - Root cause: OpenRouter routed to Google Vertex provider which rejected tool-heavy requests
+  - Solution: Force Anthropic provider via `"provider": {"order": ["Anthropic"], "allow_fallbacks": false}`
+
 - [x] **Fix:** Reminders firing immediately (wrong year: 2024)
   - Root cause: System prompt didn't include current date/time and instructed LLM to compute ISO timestamps itself. LLM used its training cutoff year (2024) instead of the real date.
   - Solution: (1) Inject `current_time` (UTC) into system prompt so LLM knows the real date. (2) Changed scheduling instructions to tell LLM to pass natural language time expressions (e.g., "in 5 minutes") directly as `schedule_value`, letting server-side `parse_natural_to_iso()` handle the conversion with `chrono::Local::now()`.
@@ -600,6 +604,35 @@ Implementation of the Brain/Hands architecture per architecture.md
 
 ---
 
+## Phase 9: API Cost Optimization ✅ COMPLETED
+
+### OpenRouter Provider Routing
+- [x] **Fix:** "Provider returned error" caused by Google Vertex fallback
+  - Root cause: OpenRouter routed requests to Google Vertex instead of Anthropic
+  - Google Vertex rejected Sandy's tool-heavy requests
+  - Solution: Added `"provider": {"order": ["Anthropic"], "allow_fallbacks": false}` to force Anthropic
+- [x] Improved error handling: parse OaiResponse first, then check for error on failure
+- [x] Added request/response logging for debugging
+
+### Prompt Caching (Anthropic)
+- [x] Split system prompt into static (SOUL.md, AGENTS.md, IDENTITY.md) and dynamic (time, memory, skills) parts
+- [x] Added `---CACHE_BREAK---` marker in system prompt between static and dynamic content
+- [x] Implemented `cache_control: {"type": "ephemeral"}` on static content via content-array format
+- [x] Added `OaiPromptTokensDetails` struct to track cached tokens in API responses
+- [x] Added cached token count logging
+
+### System Prompt Optimization
+- [x] Trimmed AGENTS.md from 496 lines (~15.6KB) to 77 lines (~2.3KB)
+  - Removed documentation for unregistered tools (patterns, tracking, agents)
+  - Archived removed content to `soul/AGENTS_FUTURE.md`
+  - Kept only docs for registered tools: bash, browser, read_file, write_file, edit_file, glob, grep, read_memory, web_fetch, web_search, activate_skill
+- [x] Removed duplicate tool registrations (web_search, activate_skill registered twice)
+
+**Status:** ✅ Deployed and verified working on Pi
+**Impact:** ~90% savings on cached static prompt tokens, ~13KB fewer input tokens per request
+
+---
+
 ## Completed Milestones
 
 ### ✅ Milestone 1: Foundation (Feb 1-5, 2026)
@@ -643,8 +676,8 @@ Implementation of the Brain/Hands architecture per architecture.md
 
 **Review cadence:** Weekly on Tuesdays
 
-**Last updated:** February 11, 2026
-**Updated by:** Developer task completion
+**Last updated:** February 12, 2026
+**Updated by:** API cost optimization (prompt caching, provider routing, system prompt trim)
 
 ---
 

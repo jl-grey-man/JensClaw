@@ -32,6 +32,8 @@ User Message → Telegram Bot → Sandy (Rust/JensClaw fork)
 - **LLM:** OpenRouter with Claude Sonnet 4.5
 - **Interfaces:** Telegram (primary), Web UI (dashboard)
 - **Storage:** File-based (OpenClaw style) - SOUL.md, AGENTS.md, patterns.json, tracking.json
+- **Cost Optimization:** Anthropic prompt caching enabled, trimmed system prompt
+- **Cost Optimization:** Anthropic prompt caching via OpenRouter, trimmed system prompt
 
 ## Project Structure
 
@@ -49,7 +51,8 @@ SandyNew/
 │   └── guard_rails.txt      # DNA injected into all spawned agents
 ├── soul/               # OpenClaw identity system
 │   ├── SOUL.md        # Sandy's personality + ADHD expertise
-│   ├── AGENTS.md      # System capabilities & instructions
+│   ├── AGENTS.md      # System capabilities (registered tools only, trimmed for cost)
+│   ├── AGENTS_FUTURE.md # Archived docs for unregistered/planned tools
 │   ├── IDENTITY.md    # Name, emoji, presentation
 │   ├── data/
 │   │   ├── patterns.json      # 18 ADHD pattern categories
@@ -328,7 +331,7 @@ Edit `microclaw.config.yaml`:
 - **Agent persistence** - Option to keep agents with accumulated knowledge
 
 ### Known Issues ⚠️
-- ~~**OpenRouter API Error** - "Provider returned error"~~ **FIXED** - Upgraded model from `anthropic/claude-3.5-sonnet` to `anthropic/claude-sonnet-4.5`, added error detection for HTTP 200 error responses, improved error logging
+- ~~**OpenRouter API Error** - "Provider returned error"~~ **FIXED** - Upgraded model to `anthropic/claude-sonnet-4.5`, forced Anthropic provider routing (prevents Google Vertex fallback), improved error handling
 - Reminders stored in both DB and JSON (sync risk, low for single-user)
 - Web UI needs page refresh for some updates (5-second polling)
 - No authentication on web UI (local use only)
