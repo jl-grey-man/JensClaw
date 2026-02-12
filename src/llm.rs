@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::json;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use std::collections::HashSet;
 
@@ -280,10 +280,17 @@ impl LlmProvider for OpenAiProvider {
     ) -> Result<MessagesResponse, MicroClawError> {
         let oai_messages = translate_messages_to_oai(system, &messages);
 
+        info!("OpenRouter request: model={}, system_len={}, messages={}, max_tokens={}",
+            self.model, system.len(), messages.len(), self.max_tokens);
+
         let mut body = json!({
             "model": self.model,
             "max_tokens": self.max_tokens,
             "messages": oai_messages,
+            "provider": {
+                "order": ["Anthropic"],
+                "allow_fallbacks": false
+            }
         });
 
         if let Some(ref tool_defs) = tools {
@@ -312,22 +319,31 @@ impl LlmProvider for OpenAiProvider {
 
             let text = response.text().await?;
 
+            // Always log the response for debugging
+            info!("OpenRouter response: status={}, body_len={}, body_preview={}",
+                status, text.len(), &text[..text.len().min(300)]);
+
             if status.is_success() {
-                // Check if the "successful" response is actually an error wrapped in 200
-                if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
-                    error!("OpenRouter returned 200 with error: {}", err.error.message);
-                    return Err(MicroClawError::LlmApi(format!(
-                        "OpenRouter provider error: {}",
-                        err.error.message
-                    )));
+                // Try parsing as a normal response first
+                match serde_json::from_str::<OaiResponse>(&text) {
+                    Ok(oai) => return Ok(translate_oai_response(oai)),
+                    Err(parse_err) => {
+                        // Failed to parse as valid response - check if it's an error wrapped in 200
+                        if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
+                            error!("OpenRouter returned 200 with error: {} | full body: {}",
+                                err.error.message, &text[..text.len().min(500)]);
+                            return Err(MicroClawError::LlmApi(format!(
+                                "Provider error: {}",
+                                err.error.message
+                            )));
+                        }
+                        error!("Failed to parse OpenRouter response: {} | body: {}",
+                            parse_err, &text[..text.len().min(500)]);
+                        return Err(MicroClawError::LlmApi(format!(
+                            "Failed to parse response: {parse_err}\nBody: {text}"
+                        )));
+                    }
                 }
-                let oai: OaiResponse = serde_json::from_str(&text).map_err(|e| {
-                    error!("Failed to parse OpenRouter response body: {}", &text[..text.len().min(500)]);
-                    MicroClawError::LlmApi(format!(
-                        "Failed to parse OpenAI response: {e}\nBody: {text}"
-                    ))
-                })?;
-                return Ok(translate_oai_response(oai));
             }
 
             if status.as_u16() == 429 && retries < max_retries {
