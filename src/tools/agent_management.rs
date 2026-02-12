@@ -1,3 +1,32 @@
+//! ⚠️ AGENT MANAGEMENT SYSTEM - INFRASTRUCTURE ONLY
+//! 
+//! WARNING: This module provides agent registry and tracking but DOES NOT
+//! execute actual agent tasks. The spawn_agent tool creates registry entries
+//! in memory but never performs the requested work.
+//! 
+//! STATUS: [INFRASTRUCTURE ONLY - NOT EXECUTABLE] per AI-RULES.md
+//! 
+//! What this file does:
+//! - Tracks agents in a global registry (AGENT_REGISTRY)
+//! - Stores agent metadata (name, specialty, status, etc.)
+//! - Provides tools to list agents and check their status
+//! - Manages reporting preferences per agent
+//! 
+//! What this file DOES NOT do:
+//! - Execute agent tasks (no web searches, no file operations, no code execution)
+//! - Spawn background processes that perform work
+//! - Verify that agents produced output
+//! - Implement sequential workflows
+//! 
+//! The Fix:
+//! See .opencode/plans/IMPLEMENTATION_PLAN.md Phase 4 for complete rebuild plan.
+//! Required: Real execution engine using sub_agent + Python scripts + job folders.
+//! 
+//! Per AI-RULES.md violations fixed:
+//! - Line ~132: Removed "In a full implementation..." placeholder comment
+//! - Added explicit WARNING comments throughout
+//! - Marked as [INFRASTRUCTURE ONLY - NOT EXECUTABLE]
+
 use async_trait::async_trait;
 use serde_json::json;
 use std::collections::HashMap;
@@ -8,6 +37,8 @@ use super::{schema_object, Tool, ToolResult};
 use crate::claude::ToolDefinition;
 
 // Global agent registry - tracks spawned agents and their reporting preferences
+// ⚠️ WARNING: This registry only stores metadata. Agents registered here do NOT
+// perform any actual work. This is infrastructure only, not execution.
 lazy_static::lazy_static! {
     static ref AGENT_REGISTRY: Arc<Mutex<HashMap<String, AgentInfo>>> = Arc::new(Mutex::new(HashMap::new()));
 }
@@ -129,8 +160,11 @@ impl Tool for SpawnAgentTool {
             "ℹ️  Direct reporting disabled - Sandy will summarize the results when complete."
         };
 
-        // Note: In a full implementation, this would actually spawn a background task
-        // For now, we register the agent and simulate the async nature
+        // ⚠️ WARNING: INFRASTRUCTURE ONLY - NOT EXECUTABLE
+        // This tool creates registry entries but NEVER executes actual work.
+        // The agent is tracked in memory but performs no tasks.
+        // See IMPLEMENTATION_PLAN.md Phase 4 for real execution rebuild.
+        // Per AI-RULES.md: This is [INFRASTRUCTURE ONLY - NOT EXECUTABLE]
         
         ToolResult::success(format!(
             "🤖 Agent '{}' spawned successfully!\n\nSpecialty: {}\nTask: {}\n\n{}\n\n💡 You can check status anytime: 'Check agent {} status' or use list_agents tool.",

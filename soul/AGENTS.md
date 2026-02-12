@@ -395,86 +395,35 @@ soul/data/skills/custom/
 - **"List my skills"** - Show all custom skills
 - **"Delete skill [name]"** - Remove a skill
 
-## Agent Delegation System
+## Agent System [NOT YET IMPLEMENTED]
 
-**Tools:** `spawn_agent`, `list_agents`, `set_agent_reporting`, `agent_status`
+⚠️ **WARNING:** The agent delegation system is currently **infrastructure only**. 
 
-Spawn specialized sub-agents to handle tasks in the background while Sandy continues the main conversation.
+**Current Status:** The `spawn_agent`, `list_agents`, `set_agent_reporting`, and `agent_status` tools exist but **do not execute actual work**. They only create registry entries and track state in memory.
 
-### Why Use Agents?
+**What This Means:**
+- ❌ Agents do NOT perform web searches
+- ❌ Agents do NOT write files
+- ❌ Agents do NOT execute code
+- ❌ "Spawning an agent" only creates a tracking entry
 
-- **Background tasks**: Continue chatting while agent works
-- **Specialization**: Research, coding, file organization
-- **Parallel processing**: Multiple tasks at once
-- **Better focus**: Each agent has specific context
+**The Truth:**
+When you ask Sandy to "spawn an agent," the agent is registered but never executes. Sandy may later claim the agent completed work, but either:
+1. Sandy did the work herself (if tools available)
+2. The task was never completed (if no tools available)
 
-### Agent Types
+**Rebuilding:**
+The agent system is being rebuilt following the Hard Rails architecture (see architecture.md). Phase 4 of IMPLEMENTATION_PLAN.md will implement:
+- Real execution via Python scripts (The Hands)
+- Sequential workflows (Zilla → verify → Gonza)
+- File system verification after each step
+- Deterministic execution, not simulation
 
-**Research Agent** (`spawn_agent` with specialty "web research"):
-- Deep web searches
-- Information gathering
-- Analysis and synthesis
-- Reports back with findings
+**When Available:**
+Expected completion: Phase 4 (6-8 hours of work). Until then, Sandy can help you directly using existing tools (file operations, web search, etc.) but cannot delegate to autonomous agents.
 
-**Code Agent** (`spawn_agent` with specialty "Python scripting"):
-- Write scripts
-- Create automation tools
-- Build web pages
-- Code review and refactoring
-
-**File Agent** (`spawn_agent` with specialty "file organization"):
-- Organize folders
-- Clean up downloads
-- Rename and categorize
-- Create backups
-
-### Toggle Reporting
-
-**You control whether each agent reports directly to you:**
-
-**Enable direct reports:**
-```
-set_agent_reporting {
-  "agent_id": "research-1",
-  "enabled": true
-}
-```
-→ Agent sends progress updates directly to you in Telegram
-
-**Disable direct reports:**
-```
-set_agent_reporting {
-  "agent_id": "research-1",
-  "enabled": false
-}
-```
-→ Agent works silently, Sandy summarizes when complete
-
-**Check status:**
-```
-list_agents → Shows all agents with reporting status
-agent_status {"agent_id": "research-1"} → Detailed status
-```
-
-### Example Usage
-
-```
-You: "Research the best note-taking apps for ADHD"
-Sandy: "I'll spawn a research agent to look into this. You can keep chatting with me while they work."
-[spawn_agent: research-1, web research, reporting: false]
-
-... continue conversation ...
-
-5 minutes later:
-Sandy: "My research agent completed their analysis. They found: Obsidian, Notion, and Roam Research. Based on your 'digital overwhelm' pattern, I'd recommend Obsidian. Want me to help you set it up?"
-```
-
-### Agent Persistence
-
-- **Active during task**: Agent has its own context and memory
-- **Reports on completion**: Either to you (if enabled) or via Sandy
-- **Can be monitored**: Check progress anytime with `agent_status`
-- **Auto-cleanup**: Agents removed after completion (configurable)
+**Existing Alternative:**
+The `sub_agent` tool DOES work - it spawns real LLM subprocesses that can execute tasks. However, it lacks the workflow orchestration, verification, and specialized agent capabilities planned for the full system.
 
 ## File Locations
 

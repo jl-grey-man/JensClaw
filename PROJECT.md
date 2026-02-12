@@ -1,6 +1,8 @@
 # Sandy - ADHD Coach
 
-> ⚠️ **IMPORTANT:** These documents must be updated at the end of each major task or feature implementation.
+> ⚠️ **IMPORTANT:** These documents must be updated at the end of each major task or feature implementation. This means: if you are implementing a big change, you need to stop whenever one sub-feature is implemented and update these documents before continuing. 
+
+> ⚠️ **IMPORTANT:** Read the document AI-RULES.MD and follow the instructions. 
 
 ## Project Overview
 
@@ -181,28 +183,35 @@ Create custom skills for reusable workflows:
 - File organization procedures
 - Focus technique guides
 
-### 10. Agent Delegation System
-Spawn specialized background agents while continuing conversation:
-- **spawn_agent** - Create agents for web research, coding, file org
-- **list_agents** - View all active agents with reporting status
-- **set_agent_reporting** - Toggle direct Telegram reports per agent
-- **agent_status** - Check progress of specific agents
+### 10. Agent System [IN DEVELOPMENT]
 
-**Agent Types:**
-- **Research Agent:** Web searches, data gathering, analysis
-- **Code Agent:** Python scripts, automation tools, web pages
-- **File Agent:** Organization, cleanup, categorization
+⚠️ **Current Status:** Infrastructure exists but execution engine not yet implemented.
 
-**Toggle Control:**
-- Enabled: Agent reports directly to you in Telegram
-- Disabled: Sandy summarizes results when complete
+**The Vision:** Spawn specialized background agents while continuing conversation:
+- Research agents for web searches
+- Code agents for script writing
+- File agents for organization
+- Sequential workflows (Agent A → verify → Agent B)
 
-**Example:**
+**Current Reality:**
+- spawn_agent exists but only creates registry entries (doesn't execute)
+- list_agents tracks state but agents don't perform work
+- The system is being rebuilt following the Hard Rails architecture
+
+**What Works NOW:**
+The `sub_agent` tool is functional - it spawns real LLM subprocesses that execute tasks with restricted tool sets.
+
+**When Available:**
+See IMPLEMENTATION_PLAN.md Phase 4 for rebuild timeline (estimated 6-8 hours of work).
+
+**Example of Planned Behavior:**
 ```
 You: "Research ADHD sleep strategies"
-Sandy: "I'll spawn a research agent..." [agent works in background]
-[You keep chatting with Sandy]
-5 min later: Sandy summarizes research findings
+Sandy: Spawns research agent [agent executes web_search, writes to file]
+[Verification: File exists and has content]
+Sandy: Spawns writer agent [transforms research into article]
+[Verification: Article file exists]
+Sandy: "Done. Files: research.json (2.4KB), article.md (1.8KB)"
 ```
 
 ## Key Design Principles
@@ -284,10 +293,12 @@ Edit `microclaw.config.yaml`:
 - **Document management** - create/edit files in `/mnt/storage`
 - **Daily self-review** - automatic improvement analysis with user approval
 - **Skill builder** - create custom workflows and procedures
-- **Agent delegation** - spawn background agents for research/coding/tasks
-- **Toggle reporting** - control whether agents report directly to you
+- **Sub-agent execution** - spawn background LLM subprocesses for tasks
 - **HELP command** - comprehensive help via Telegram
 - **Config flexibility** - supports `sandy.config.yaml` and legacy `microclaw.config.yaml`
+
+### What's Placeholder / In Development 🔄
+- **Agent delegation system** - Infrastructure exists but execution engine not yet implemented. spawn_agent creates registry entries only, never executes actual work. See IMPLEMENTATION_PLAN.md Phase 4 for rebuild status.
 
 ### What's In Progress 🔄
 - **Enhanced self-review** - More sophisticated analysis and suggestions
@@ -307,8 +318,9 @@ Edit `microclaw.config.yaml`:
 1. ✅ **Document management** - Full file operations in `/mnt/storage`
 2. ✅ **Self-review system** - Daily automatic analysis with user approval
 3. ✅ **Skill builder** - Create custom ADHD workflows and procedures
-4. ✅ **Agent delegation** - Spawn background agents for research/coding
+4. ✅ **Sub-agent execution** - Working LLM subprocess spawning for tasks
 5. ✅ **Config flexibility** - Support for `sandy.config.yaml`
+6. 🔄 **Agent delegation system** - Infrastructure built, execution engine in development (Phase 4)
 
 ### Short-term (Next 1-2 months)
 1. Proactive reminders based on learned patterns
