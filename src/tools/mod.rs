@@ -4,6 +4,7 @@ pub mod bash;
 pub mod browser;
 pub mod create_skill;
 pub mod edit_file;
+pub mod file_ops;
 pub mod export_chat;
 pub mod glob;
 pub mod grep;
