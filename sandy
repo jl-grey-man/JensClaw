@@ -89,6 +89,7 @@ case "${1:-help}" in
             sandy status
         else
             cd ~/sandy
+            mkdir -p logs
             nohup ./target/release/microclaw start > logs/sandy.log 2>&1 &
             sleep 2
             echo "✅ Sandy started"
