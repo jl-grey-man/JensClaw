@@ -27,10 +27,18 @@ fn default_max_history_messages() -> usize {
     50
 }
 fn default_data_dir() -> String {
-    "./microclaw.data".into()
+    // Use XDG data directory or fallback to ~/.local/share/sandy
+    // This keeps runtime data OUTSIDE the git repository
+    dirs::data_dir()
+        .map(|d| d.join("sandy").to_string_lossy().to_string())
+        .unwrap_or_else(|| "./sandy.data".into())
 }
 fn default_working_dir() -> String {
-    "./tmp".into()
+    // Use system temp directory, not inside git repo
+    std::env::temp_dir()
+        .join("sandy_work")
+        .to_string_lossy()
+        .to_string()
 }
 fn default_timezone() -> String {
     "UTC".into()
