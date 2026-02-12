@@ -9,3 +9,9 @@ tmp/
 .env
 *.env
 .env.*
+
+# Runtime files and logs
+*.log
+logs/
+.cache/
+runtime/
