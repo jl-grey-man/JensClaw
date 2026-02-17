@@ -21,6 +21,7 @@ pub mod mcp;
 pub mod memory;
 pub mod memory_decay;
 pub mod pattern_actions;
+pub mod proactive;
 pub mod scheduler;
 pub mod setup;
 pub mod skills;

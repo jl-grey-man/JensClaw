@@ -98,6 +98,9 @@ pub async fn run_bot(
     // Start heartbeat check-ins
     crate::heartbeat::spawn_heartbeat(state.clone());
 
+    // Ensure proactive morning/evening check-in schedules exist
+    crate::proactive::ensure_proactive_schedules(&state).await;
+
     // Start WhatsApp webhook server if configured
     if let (Some(token), Some(phone_id), Some(verify)) = (
         &state.config.whatsapp_access_token,
@@ -190,7 +193,7 @@ async fn handle_message(
 
     // Handle HELP command — show comprehensive help
     if text.trim().eq_ignore_ascii_case("HELP") || text.trim() == "/help" {
-        let help_text = get_help_text();
+        let help_text = get_help_text(state.config.web_port);
         let _ = bot.send_message(msg.chat.id, help_text).await;
         return Ok(());
     }
@@ -1735,8 +1738,8 @@ mod tests {
 }
 
 /// Generate comprehensive help text for the HELP command
-fn get_help_text() -> String {
-    format!(r#"🎯 **SANDY - Your ADHD Coach** 
+fn get_help_text(web_port: u16) -> String {
+    format!(r#"🎯 **SANDY - Your ADHD Coach**
 
 **Quick Commands:**
 • HELP - Show this help message
@@ -1783,12 +1786,11 @@ fn get_help_text() -> String {
 • Build workflows: Medication tracking, focus techniques, file organization
 • Skills stored in: soul/data/skills/custom/
 
-🤖 **Agent Delegation** (Background Tasks)
-• Spawn agents: "Research this topic for me" (runs in background)
-• Specialized agents: Research, Code, File organization
-• Toggle reports: "Enable reports from my research agent"
-• Check status: "List all agents" or "Check agent research-1"
-• Keep chatting while agents work!
+🤖 **Agent Delegation**
+• Agents: Zilla (research/web), Gonza (file/code tasks)
+• Delegate tasks: "Have Zilla research ADHD medication options"
+• Check status: "List all agents" or "Check agent status"
+• Note: Agents run synchronously — Sandy waits for the result before replying
 
 📊 **Daily Self-Review** (Automatic at 3 AM)
 • Analyzes how well Sandy supported you today
@@ -1809,7 +1811,7 @@ fn get_help_text() -> String {
 • She celebrates wins briefly and genuinely
 
 **Web Dashboard:**
-Access at: http://100.72.180.20:3000 (via Tailscale)
+Access at: http://localhost:{web_port}
 • View active goals, projects, tasks
 • See real-time activity log
 • Track your progress visually
@@ -1819,5 +1821,5 @@ Just ask: "How do I..." or "Can you help me with..."
 Sandy will guide you through any feature!
 
 ---
-Built with 💚 for ADHD minds"#)
+Built with 💚 for ADHD minds"#, web_port = web_port)
 }
