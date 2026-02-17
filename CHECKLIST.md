@@ -78,6 +78,39 @@
 - [x] Agent configs created: `zilla.json`, `gonza.json`
 - [x] All code compiles with `cargo check` ✅
 
+### Agent System Enhancements (February 16, 2026) ✅ COMPLETED
+- [x] **Tool Filtering** — Agents only get whitelisted tools from config
+  - `SubAgentTool::with_registry()` accepts custom tool registry
+  - `create_filtered_registry()` builds registry from allowed_tools list
+  - Zilla gets 5 tools (web_search, web_fetch, write_file, read_file, bash)
+  - Gonza gets 2 tools (read_file, write_file) — NO web access
+  - 9 comprehensive tests — all passing ✅
+- [x] **Format Validation** — JSON/Markdown output verification
+  - `verify_output()` validates file format matches expected type
+  - JSON validation: Ensures valid JSON structure
+  - Markdown validation: Checks for markdown markers and sufficient content
+  - Workflow stops if format validation fails
+  - 10 format validation tests — all passing ✅
+- [x] **Progress Updates** — Real-time status during long operations
+  - `send_message` tool for mid-workflow status updates
+  - Immediate acknowledgment before starting work
+  - Progress updates every 30-60 seconds for long tasks
+  - Documented in SOUL.md and AGENTS.md
+- [x] **File Delivery** — Automatic Telegram file sending
+  - `send_file` tool sends output files as attachments
+  - Optional caption with file details (size, word count, sources)
+  - Sends files after workflow completion
+  - Works with any file type (MD, JSON, PDF, etc.)
+- [x] **Effort Levels** — User controls research depth
+  - Quick: 2-3 sources, 2-3 minutes
+  - Medium: 5-7 sources, 5-7 minutes (default)
+  - Full: 10+ sources, 10+ minutes
+  - Sandy detects keywords in user requests
+- [x] **Working Directory** — Output files in `/mnt/storage/`
+  - Agent configs stay in project: `/home/jens/sandy/storage/agents/`
+  - Output files: `/mnt/storage/tasks/` (Samba-shared)
+  - Accessible from other computers via network share
+
 ---
 
 ## What's Next 🔨
@@ -102,10 +135,13 @@
   - ✅ File existence check
   - ✅ File size check
   - ✅ Content validation (no ERROR prefix)
-- [~] Integration testing
-  - "Research AI news" → Zilla executes → file verified
-  - Zilla → Gonza workflow end-to-end
-  - Error propagation and failure handling
+- [x] Integration testing ✅ COMPLETED
+  - Tested via Telegram with real workflows
+  - Tool filtering verified (Zilla: 5 tools, Gonza: 2 tools)
+  - Format validation verified (JSON/Markdown checking)
+  - Progress updates working
+  - File delivery working
+  - Error propagation and failure handling tested
 
 **Dependencies:** Phase 3 ✅ (skill scripts complete)
 
@@ -119,11 +155,39 @@
 
 ---
 
-### Phase 5: Safety & Guardrails ⏳ PENDING
+### Phase 5: Self-Healing System ✅ COMPLETED (February 17, 2026)
 
+**Goal:** Implement OpenClaw-style self-healing and anti-hallucination features
+**Status:** ✅ COMPLETE — 12 features implemented, 406 tests passing
+
+#### Self-Healing Features ✅
+- [x] **Hook system** — PreHook/PostHook pipeline on all tool calls (`src/hooks.rs`, 6 tests)
+- [x] **Loop detection** — Blocks repeated identical calls, 3x in window of 8 (`src/hooks/loop_detect.rs`, 5 tests)
+- [x] **Execution logging** — JSONL tool call logging with 10MB rotation (`src/exec_log.rs`, 5 tests)
+- [x] **Context window guard** — Auto-compact at 80%, hard limit at 95% (`src/context_guard.rs`, 10 tests)
+- [x] **Model failover with cooldown** — Exponential backoff per model, auto-fallback (`src/llm_retry.rs`, 8 tests)
+- [x] **Doctor auto-fix** — Creates missing dirs, repairs corrupt files (`src/tools/doctor.rs`, 6 tests)
+- [x] **Temporal memory decay** — Exponential decay with category half-lives (`src/memory_decay.rs`, 10 tests)
+- [x] **BM25 memory search** — TF-IDF ranking + temporal decay weighting (`src/tools/memory_search.rs`, 10 tests)
+- [x] **Solution confidence tracking** — Wilson score interval, flags low-confidence solutions (`src/confidence.rs`, 13 tests)
+- [x] **Memory injection hook** — Auto-injects relevant context into agent calls (`src/hooks/memory_inject.rs`, 6 tests)
+- [x] **Heartbeat check-ins** — 6-hour health checks to control chat (`src/heartbeat.rs`, 3 tests)
+- [x] **Pattern-to-action pipeline** — Auto-suggests skills/tasks from frequent patterns (`src/pattern_actions.rs`, 9 tests)
+
+#### Previously Completed ✅
+- [x] **Tool filtering system** — Sandy blocked from web tools, must delegate to agents
+- [x] **Verification requirements** — Solutions must provide proof, vague content rejected
+- [x] **Doctor command** — System diagnostics (tool refs, agent configs, DB integrity)
+
+---
+
+#### Deferred (Lower Priority) 📋
+- [ ] Dynamic code generation (Sandy creates new tools at runtime)
 - [ ] Verify path traversal protection applied everywhere
-- [ ] Tool whitelisting per agent (filter registry by `allowed_tools`)
 - [ ] Error handling standards (errors written to output files, not just logged)
+- [ ] Config migration (auto-update old configs)
+- [ ] Idempotent operations (prevent duplicate actions)
+- [ ] Full JSON schema validation
 
 ---
 
@@ -177,11 +241,27 @@
 | `soul/AGENTS.md` | Registered tool documentation (trimmed for cost) |
 | `soul/AGENTS_FUTURE.md` | Archived docs for planned/unregistered tools |
 | `config/sandy.config.yaml` | Bot configuration |
-| `src/tools/mod.rs` | Tool registry (11 registered tools) |
+| `src/tools/mod.rs` | Tool registry |
 | `src/llm.rs` | LLM provider (OpenRouter, prompt caching, provider routing) |
+| `src/hooks.rs` | Hook system (PreHook/PostHook pipeline) |
+| `src/exec_log.rs` | Execution logging (JSONL) |
+| `src/context_guard.rs` | Context window management |
+| `src/llm_retry.rs` | Model failover with cooldown |
+| `src/confidence.rs` | Solution confidence tracking (Wilson score) |
+| `src/memory_decay.rs` | Temporal memory decay |
+| `src/heartbeat.rs` | Periodic health check-ins |
+| `src/pattern_actions.rs` | Pattern-to-action pipeline |
 
 ---
 
-**Last updated:** February 12, 2026
+**Last updated:** February 17, 2026
+**Major update:** Self-healing system complete — 12 features, 406 tests passing
 **Review cadence:** Weekly on Tuesdays
-**Next review:** February 18, 2026
+**Next review:** February 24, 2026
+
+---
+
+## 🚀 START HERE NEXT SESSION
+
+**Status:** Self-healing system complete. Service running.
+**Next:** Phase 7 — Proactive Sandy (unprompted check-ins, pattern-based suggestions)

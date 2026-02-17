@@ -82,10 +82,16 @@ pub trait LlmProvider: Send + Sync {
 }
 
 pub fn create_provider(config: &Config) -> Box<dyn LlmProvider> {
-    match config.llm_provider.trim().to_lowercase().as_str() {
+    use crate::llm_retry::RetryLlmProvider;
+
+    // Create base provider
+    let base_provider: Box<dyn LlmProvider> = match config.llm_provider.trim().to_lowercase().as_str() {
         "anthropic" => Box::new(AnthropicProvider::new(config)),
         _ => Box::new(OpenAiProvider::new(config)),
-    }
+    };
+
+    // Wrap with retry logic
+    Box::new(RetryLlmProvider::new(base_provider))
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +206,7 @@ pub struct OpenAiProvider {
     http: reqwest::Client,
     api_key: String,
     model: String,
+    fallback_models: Vec<String>,
     max_tokens: u32,
     chat_url: String,
 }
@@ -216,6 +223,7 @@ impl OpenAiProvider {
             http: reqwest::Client::new(),
             api_key: config.api_key.clone(),
             model: config.model.clone(),
+            fallback_models: config.fallback_models.clone(),
             max_tokens: config.max_tokens,
             chat_url,
         }
@@ -288,18 +296,26 @@ impl LlmProvider for OpenAiProvider {
     ) -> Result<MessagesResponse, MicroClawError> {
         let oai_messages = translate_messages_to_oai(system, &messages);
 
-        info!("OpenRouter request: model={}, system_len={}, messages={}, max_tokens={}",
-            self.model, system.len(), messages.len(), self.max_tokens);
+        // Try primary model first, then fallbacks
+        let models_to_try = std::iter::once(&self.model)
+            .chain(self.fallback_models.iter())
+            .collect::<Vec<_>>();
 
-        let mut body = json!({
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "messages": oai_messages,
-            "provider": {
-                "order": ["Anthropic"],
-                "allow_fallbacks": false
-            }
-        });
+        let mut last_error = None;
+
+        for (attempt, model) in models_to_try.iter().enumerate() {
+            info!("OpenRouter request: model={}, system_len={}, messages={}, max_tokens={} (attempt {}/{})",
+                model, system.len(), messages.len(), self.max_tokens, attempt + 1, models_to_try.len());
+
+            let mut body = json!({
+                "model": model,
+                "max_tokens": self.max_tokens,
+                "messages": oai_messages,
+                "provider": {
+                    "order": ["Anthropic"],
+                    "allow_fallbacks": false
+                }
+            });
 
         if let Some(ref tool_defs) = tools {
             if !tool_defs.is_empty() {
@@ -339,6 +355,17 @@ impl LlmProvider for OpenAiProvider {
                         if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
                             error!("OpenRouter returned 200 with error: {} | full body: {}",
                                 err.error.message, &text[..text.len().min(500)]);
+
+                            // If it's an overload error and we have more models to try, continue
+                            if err.error.message.contains("Overloaded") && attempt + 1 < models_to_try.len() {
+                                warn!("Model {} overloaded, trying fallback model...", model);
+                                last_error = Some(MicroClawError::LlmApi(format!(
+                                    "Provider error: {}",
+                                    err.error.message
+                                )));
+                                break; // Break inner loop to try next model
+                            }
+
                             return Err(MicroClawError::LlmApi(format!(
                                 "Provider error: {}",
                                 err.error.message
@@ -366,10 +393,23 @@ impl LlmProvider for OpenAiProvider {
 
             error!("OpenRouter error: status={}, body={}", status, &text[..text.len().min(1000)]);
             if let Ok(err) = serde_json::from_str::<OaiErrorResponse>(&text) {
-                return Err(MicroClawError::LlmApi(format!("OpenRouter: {} (HTTP {})", err.error.message, status)));
+                last_error = Some(MicroClawError::LlmApi(format!("OpenRouter: {} (HTTP {})", err.error.message, status)));
+                break; // Try next model
             }
-            return Err(MicroClawError::LlmApi(format!("OpenRouter HTTP {status}: {text}")));
+            last_error = Some(MicroClawError::LlmApi(format!("OpenRouter HTTP {status}: {text}")));
+            break; // Try next model
         }
+        // End of retry loop
+
+        // If we got here without returning, we exhausted retries for this model - try next
+        if attempt + 1 < models_to_try.len() {
+            warn!("Model {} failed, trying fallback model...", model);
+            continue;
+        }
+    }
+
+    // All models failed
+    Err(last_error.unwrap_or_else(|| MicroClawError::LlmApi("All models failed".into())))
     }
 }
 
@@ -960,6 +1000,13 @@ mod tests {
             discord_bot_token: None,
             discord_allowed_channels: vec![],
             show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
         };
         // Should not panic
         let _provider = create_provider(&config);
@@ -992,6 +1039,13 @@ mod tests {
             discord_bot_token: None,
             discord_allowed_channels: vec![],
             show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
         };
         let _provider = create_provider(&config);
     }

@@ -209,36 +209,56 @@ Create custom skills for reusable workflows:
 - File organization procedures
 - Focus technique guides
 
-### 10. Agent System [IN DEVELOPMENT]
+### 10. Agent Orchestration System ✅
 
-⚠️ **Current Status:** Infrastructure exists but execution engine not yet implemented.
+**Status:** Fully implemented and operational.
 
-**The Vision:** Spawn specialized background agents while continuing conversation:
-- Research agents for web searches
-- Code agents for script writing
-- File agents for organization
-- Sequential workflows (Agent A → verify → Agent B)
+**Architecture:** Sandy acts as an orchestrator, delegating specialized tasks to background agents.
 
-**Current Reality:**
-- spawn_agent exists but only creates registry entries (doesn't execute)
-- list_agents tracks state but agents don't perform work
-- The system is being rebuilt following the Hard Rails architecture
+**Available Agents:**
+- **Zilla** (Research Agent) - Web search, data gathering, journalistic research
+  - Tools: `web_search`, `web_fetch`, `write_file`, `read_file`, `bash`
+  - Output: Structured JSON with sources and URLs
 
-**What Works NOW:**
-The `sub_agent` tool is functional - it spawns real LLM subprocesses that execute tasks with restricted tool sets.
+- **Gonza** (Writer Agent) - Article writing, content creation
+  - Tools: `read_file`, `write_file` (NO web access)
+  - Output: Markdown articles with citations
+  - Security: Cannot search the web - only uses provided research
 
-**When Available:**
-See IMPLEMENTATION_PLAN.md Phase 4 for rebuild timeline (estimated 6-8 hours of work).
+**Key Features:**
+- **Tool Filtering:** Agents only get their whitelisted tools (hallucination-proof)
+- **Format Validation:** Outputs verified as valid JSON or Markdown
+- **Progress Updates:** Sandy sends real-time status via `send_message`
+- **File Delivery:** Completed files automatically sent via `send_file`
+- **Sequential Workflows:** Multi-step chains with verification between each step
+- **Effort Control:** User can specify "quick", "medium", or "full" research depth
 
-**Example of Planned Behavior:**
+**Usage Examples:**
 ```
+Single Agent:
 You: "Research ADHD sleep strategies"
-Sandy: Spawns research agent [agent executes web_search, writes to file]
-[Verification: File exists and has content]
-Sandy: Spawns writer agent [transforms research into article]
-[Verification: Article file exists]
-Sandy: "Done. Files: research.json (2.4KB), article.md (1.8KB)"
+Sandy: "Got it! Zilla's on it..."
+→ Zilla researches (5-7 sources)
+→ Verification: File exists, valid JSON
+→ File sent to Telegram
+Sandy: "Found 8 strategies including..."
+
+Multi-Step Workflow:
+You: "Research AI safety and write an article"
+Sandy: "On it. Setting up research → writing workflow..."
+→ Zilla researches → saves research.json
+→ Verification: Valid JSON, has content
+→ Gonza reads research.json → writes article.md
+→ Verification: Valid Markdown, has content
+→ File sent to Telegram
+Sandy: "Article complete (3,245 words, 7 sources)"
 ```
+
+**Implementation Details:**
+- Agent configs: `storage/agents/*.json`
+- Output files: `/mnt/storage/tasks/` (Samba-shared)
+- Filtered tool registries prevent unauthorized tool access
+- Format validation catches errors before next workflow step
 
 ## Key Design Principles
 
@@ -319,15 +339,28 @@ Edit `microclaw.config.yaml`:
 - **Document management** - create/edit files in `/mnt/storage`
 - **Daily self-review** - automatic improvement analysis with user approval
 - **Skill builder** - create custom workflows and procedures
-- **Sub-agent execution** - spawn background LLM subprocesses for tasks
+- **Agent orchestration system** - Fully operational delegation to specialized agents (Zilla/Gonza)
+- **Tool filtering** - Agents only get whitelisted tools (security + anti-hallucination)
+- **Format validation** - JSON/Markdown output verification
+- **Progress updates** - Real-time status messages during long operations
+- **File delivery** - Automatic Telegram file sending after workflow completion
 - **HELP command** - comprehensive help via Telegram
 - **Config flexibility** - supports `sandy.config.yaml` and legacy `microclaw.config.yaml`
-
-### What's Placeholder / In Development 🔄
-- **Agent delegation system** - Infrastructure exists but execution engine not yet implemented. spawn_agent creates registry entries only, never executes actual work. See IMPLEMENTATION_PLAN.md Phase 4 for rebuild status.
+- **OpenClaw-inspired guardrails** - Hard-coded tool restrictions, verification requirements, vague content detection
+- **Doctor command with auto-fix** - System diagnostics, creates missing dirs, repairs corrupt files
+- **Hook system** - PreHook/PostHook pipeline on all tool calls (loop detection, memory injection, exec logging)
+- **Loop detection** - Blocks repeated identical tool calls (3x in window of 8)
+- **Execution logging** - JSONL tool call logging with 10MB rotation
+- **Context window guard** - Auto-compact at 80%, hard limit at 95% of context window
+- **Model failover with cooldown** - Exponential backoff per model, automatic fallback selection
+- **Temporal memory decay** - Exponential decay scoring with category-specific half-lives
+- **BM25 memory search** - Proper text ranking combined with temporal decay weighting
+- **Solution confidence tracking** - Wilson score interval, flags low-confidence solutions for re-verification
+- **Memory injection hook** - Auto-injects relevant memory context into agent calls
+- **Heartbeat check-ins** - 6-hour periodic health checks, sends issues to control chat
+- **Pattern-to-action pipeline** - Auto-suggests skills/tasks from high-frequency patterns
 
 ### What's In Progress 🔄
-- **Enhanced self-review** - More sophisticated analysis and suggestions
 - **Proactive Sandy** (unprompted check-ins based on patterns)
 - **Agent persistence** - Option to keep agents with accumulated knowledge
 
@@ -410,11 +443,42 @@ MIT License - See LICENSE file
 
 ---
 
-**Last Updated:** February 12, 2026
-- **API cost optimization:** Enabled Anthropic prompt caching (~90% savings on static system prompt), trimmed AGENTS.md from 15.6KB to 2.3KB, removed duplicate tool registrations
-- **OpenRouter provider routing:** Forced Anthropic provider to prevent Google Vertex fallback errors
-- Upgraded model to Claude Sonnet 4.5 (`anthropic/claude-sonnet-4.5`)
-- Improved error handling for HTTP 200 error responses with request/response logging
-- Fixed reminders using wrong year (2024) — system prompt now includes current date/time
+**Last Updated:** February 17, 2026
 
-**Next Review:** After next feature implementation
+**Major Update: Self-Healing System Complete (12 features)**
+
+### Session Accomplishments (Feb 17, 2026):
+
+**Full Self-Healing Implementation** — 12 features, 406 tests passing:
+
+| # | Feature | File(s) | Tests |
+|---|---------|---------|-------|
+| 1 | Hook system (PreHook/PostHook pipeline) | `src/hooks.rs` | 6 |
+| 2 | Loop detection (blocks 3x repeats in window of 8) | `src/hooks/loop_detect.rs` | 5 |
+| 3 | Execution logging (JSONL, 10MB rotation) | `src/exec_log.rs` | 5 |
+| 4 | Context window guard (compact at 80%, hard limit 95%) | `src/context_guard.rs` | 10 |
+| 5 | Model failover with cooldown (exponential backoff) | `src/llm_retry.rs` | 8 |
+| 6 | Doctor auto-fix (creates dirs, repairs corrupt files) | `src/tools/doctor.rs` | 6 |
+| 7 | Temporal memory decay (category-specific half-lives) | `src/memory_decay.rs` | 10 |
+| 8 | BM25 memory search (TF-IDF ranking + decay) | `src/tools/memory_search.rs` | 10 |
+| 9 | Solution confidence tracking (Wilson score interval) | `src/confidence.rs` | 13 |
+| 10 | Memory injection hook (auto-inject context into agents) | `src/hooks/memory_inject.rs` | 6 |
+| 11 | Heartbeat check-ins (6-hour health checks to control chat) | `src/heartbeat.rs` | 3 |
+| 12 | Pattern-to-action pipeline (auto-suggest skills/tasks) | `src/pattern_actions.rs` | 9 |
+
+### OpenClaw Parity Status:
+- ✅ Tool Filtering
+- ✅ Output Verification
+- ✅ Memory Search (BM25 + temporal decay)
+- ✅ Circuit Breakers
+- ✅ Doctor Command (with auto-fix)
+- ✅ Pre-Action Hooks (loop detection + memory injection)
+- ✅ Execution Logging
+- ✅ Context Window Management
+- ✅ Model Failover
+- ✅ Heartbeat Monitoring
+- ✅ Pattern Analysis
+- ✅ Confidence Tracking
+- ⏳ Dynamic Code Generation (FUTURE - Sandy creates new tools)
+
+**Next Review:** After next feature implementation or bug fix

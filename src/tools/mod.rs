@@ -5,6 +5,7 @@ pub mod bash;
 pub mod execute_workflow;
 pub mod browser;
 pub mod create_skill;
+pub mod doctor;
 pub mod edit_file;
 pub mod file_ops;
 pub mod export_chat;
@@ -12,13 +13,17 @@ pub mod glob;
 pub mod grep;
 pub mod mcp;
 pub mod memory;
+pub mod memory_log;
+pub mod memory_search;
 pub mod parse_datetime;
 pub mod path_guard;
 pub mod patterns;
 pub mod read_file;
 pub mod schedule;
+pub mod send_file;
 pub mod send_message;
 pub mod sub_agent;
+pub mod tool_filter;
 pub mod todo;
 pub mod tracking;
 pub mod web_fetch;
@@ -35,7 +40,9 @@ use teloxide::prelude::*;
 use crate::claude::ToolDefinition;
 use crate::config::Config;
 use crate::db::Database;
+use crate::hooks::HookRegistry;
 
+#[derive(Debug)]
 pub struct ToolResult {
     pub content: String,
     pub is_error: bool,
@@ -125,6 +132,8 @@ pub trait Tool: Send + Sync {
 
 pub struct ToolRegistry {
     tools: Vec<Box<dyn Tool>>,
+    is_main_bot: bool,  // true for Sandy's main registry, false for sub-agents
+    hooks: Arc<HookRegistry>,
 }
 
 pub fn resolve_tool_path(working_dir: &Path, path: &str) -> PathBuf {
@@ -137,6 +146,15 @@ pub fn resolve_tool_path(working_dir: &Path, path: &str) -> PathBuf {
 }
 
 impl ToolRegistry {
+    /// Create an empty tool registry (for building filtered registries)
+    pub fn empty() -> Self {
+        ToolRegistry {
+            tools: Vec::new(),
+            is_main_bot: false,  // Filtered registries are for sub-agents
+            hooks: Arc::new(HookRegistry::new()),
+        }
+    }
+
     pub fn new(config: &Config, bot: Bot, db: Arc<Database>) -> Self {
         let working_dir = PathBuf::from(&config.working_dir);
         if let Err(e) = std::fs::create_dir_all(&working_dir) {
@@ -147,12 +165,24 @@ impl ToolRegistry {
             );
         }
         let skills_data_dir = config.skills_data_dir();
-        let tools: Vec<Box<dyn Tool>> = vec![
+        let mut tools: Vec<Box<dyn Tool>> = vec![
             Box::new(agent_factory::AgentFactoryTool::new(&config.working_dir)),
             Box::new(agent_management::SpawnAgentTool::new(config)),
             Box::new(agent_management::ListAgentsTool::new()),
             Box::new(agent_management::AgentStatusTool::new()),
             Box::new(execute_workflow::ExecuteWorkflowTool::new(config)),
+            Box::new(send_message::SendMessageTool::new(bot.clone())),
+            Box::new(send_file::SendFileTool::new(bot.clone())),
+            Box::new(schedule::ScheduleTaskTool::new(
+                db.clone(),
+                config.timezone.clone(),
+                config.data_dir.clone(),
+            )),
+            Box::new(schedule::ListTasksTool::new(db.clone())),
+            Box::new(schedule::PauseTaskTool::new(db.clone())),
+            Box::new(schedule::ResumeTaskTool::new(db.clone())),
+            Box::new(schedule::CancelTaskTool::new(db.clone())),
+            Box::new(schedule::GetTaskHistoryTool::new(db.clone())),
             Box::new(bash::BashTool::new(&config.working_dir)),
             Box::new(browser::BrowserTool::new(&config.data_dir)),
             Box::new(read_file::ReadFileTool::new(&config.working_dir)),
@@ -161,11 +191,39 @@ impl ToolRegistry {
             Box::new(glob::GlobTool::new(&config.working_dir)),
             Box::new(grep::GrepTool::new(&config.working_dir)),
             Box::new(memory::ReadMemoryTool::new(&config.data_dir)),
+            Box::new(memory_search::MemorySearchTool::new(
+                PathBuf::from(&config.data_dir).join("memory")
+            )),
+            Box::new(memory_log::MemoryLogTool::new(
+                PathBuf::from(&config.data_dir).join("memory")
+            )),
             Box::new(web_fetch::WebFetchTool),
             Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
+            // Task/Goal/Project tracking tools
+            Box::new(tracking::ReadTrackingTool::new(&config.data_dir)),
+            Box::new(tracking::CreateTaskTool::new(&config.data_dir)),
+            Box::new(tracking::CreateGoalTool::new(&config.data_dir)),
+            Box::new(tracking::CreateProjectTool::new(&config.data_dir)),
+            Box::new(tracking::UpdateStatusTool::new(&config.data_dir)),
+            Box::new(tracking::AddNoteTool::new(&config.data_dir)),
+            Box::new(tracking::RemoveNoteTool::new(&config.data_dir)),
         ];
-        ToolRegistry { tools }
+
+        // Add doctor tool with actual registered tool names (must come after tools vec is built)
+        let tool_names: Vec<String> = tools.iter().map(|t| t.name().to_string()).collect();
+        tools.push(Box::new(doctor::DoctorTool::new(config, tool_names)));
+
+        // Debug: Log all registered tools
+        tracing::info!("Registering {} tools:", tools.len());
+        for tool in &tools {
+            tracing::info!("  - {}", tool.name());
+        }
+        ToolRegistry {
+            tools,
+            is_main_bot: true,  // This is Sandy's main registry
+            hooks: Arc::new(HookRegistry::new()),
+        }
     }
 
     /// Create a restricted tool registry for sub-agents (no side-effect or recursive tools).
@@ -188,15 +246,50 @@ impl ToolRegistry {
             Box::new(glob::GlobTool::new(&config.working_dir)),
             Box::new(grep::GrepTool::new(&config.working_dir)),
             Box::new(memory::ReadMemoryTool::new(&config.data_dir)),
+            Box::new(memory_search::MemorySearchTool::new(
+                PathBuf::from(&config.data_dir).join("memory")
+            )),
+            Box::new(memory_log::MemoryLogTool::new(
+                PathBuf::from(&config.data_dir).join("memory")
+            )),
             Box::new(web_fetch::WebFetchTool),
             Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
         ];
-        ToolRegistry { tools }
+        ToolRegistry {
+            tools,
+            is_main_bot: false,  // This is for sub-agents, not main Sandy
+            hooks: Arc::new(HookRegistry::new()),
+        }
     }
 
     pub fn add_tool(&mut self, tool: Box<dyn Tool>) {
         self.tools.push(tool);
+    }
+
+    /// Set the hook registry for this tool registry
+    pub fn set_hooks(&mut self, hooks: HookRegistry) {
+        self.hooks = Arc::new(hooks);
+    }
+
+    /// Get a reference to the hook registry
+    pub fn hooks(&self) -> &HookRegistry {
+        &self.hooks
+    }
+
+    /// Get the number of tools in this registry
+    pub fn tool_count(&self) -> usize {
+        self.tools.len()
+    }
+
+    /// Check if a tool with the given name exists in this registry
+    pub fn has_tool(&self, name: &str) -> bool {
+        self.tools.iter().any(|t| t.name() == name)
+    }
+
+    /// Get a list of all tool names in this registry
+    pub fn tool_names(&self) -> Vec<String> {
+        self.tools.iter().map(|t| t.name().to_string()).collect()
     }
 
     pub fn definitions(&self) -> Vec<ToolDefinition> {
@@ -204,12 +297,47 @@ impl ToolRegistry {
     }
 
     pub async fn execute(&self, name: &str, input: serde_json::Value) -> ToolResult {
-        for tool in &self.tools {
-            if tool.name() == name {
-                return tool.execute(input).await;
+        // GUARDRAIL: Check if Sandy (main bot) is allowed to use this tool
+        // Only apply to main bot, not sub-agents (Zilla, Gonza need web access!)
+        if self.is_main_bot {
+            if let Err(violation) = tool_filter::can_sandy_use(name) {
+                tracing::warn!("Tool filter blocked main bot from using: {}", name);
+                return ToolResult::error(format!("{}\n\nSuggestion: {}", violation, tool_filter::get_alternative(name)));
             }
         }
-        ToolResult::error(format!("Unknown tool: {name}"))
+
+        // Run pre-hooks (may block or modify input)
+        let input = match self.hooks.run_pre_hooks(name, input).await {
+            Ok(input) => input,
+            Err(blocked) => return blocked,
+        };
+
+        let start = std::time::Instant::now();
+
+        let result = {
+            let mut found = false;
+            let mut result = ToolResult::error(format!("Unknown tool: {name}"));
+            for tool in &self.tools {
+                if tool.name() == name {
+                    result = tool.execute(input.clone()).await;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return result;
+            }
+            result
+        };
+
+        let duration = start.elapsed();
+
+        // Run post-hooks
+        self.hooks
+            .run_post_hooks(name, &input, &result, duration)
+            .await;
+
+        result
     }
 
     pub async fn execute_with_auth(
@@ -235,6 +363,43 @@ pub fn schema_object(properties: serde_json::Value, required: &[&str]) -> serde_
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Helper to create a minimal test config
+    fn test_config() -> Config {
+        Config {
+            telegram_bot_token: "tok".into(),
+            bot_username: "bot".into(),
+            llm_provider: "anthropic".into(),
+            api_key: "key".into(),
+            model: "claude-test".into(),
+            llm_base_url: None,
+            max_tokens: 4096,
+            max_tool_iterations: 100,
+            max_history_messages: 50,
+            data_dir: "/tmp".into(),
+            working_dir: "/tmp".into(),
+            openai_api_key: None,
+            timezone: "UTC".into(),
+            allowed_groups: vec![],
+            control_chat_ids: vec![],
+            max_session_messages: 40,
+            compact_keep_recent: 20,
+            whatsapp_access_token: None,
+            whatsapp_phone_number_id: None,
+            whatsapp_verify_token: None,
+            whatsapp_webhook_port: 8080,
+            discord_bot_token: None,
+            discord_allowed_channels: vec![],
+            show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/runtime/MEMORY.md".into(),
+        }
+    }
 
     #[test]
     fn test_tool_result_success() {
@@ -298,5 +463,42 @@ mod tests {
         });
         let err = authorize_chat_access(&input, 200).unwrap_err();
         assert!(err.contains("Permission denied"));
+    }
+
+    #[test]
+    fn test_tool_registry_empty() {
+        let registry = ToolRegistry::empty();
+        assert_eq!(registry.tool_count(), 0);
+        assert!(!registry.has_tool("any_tool"));
+        assert_eq!(registry.tool_names().len(), 0);
+    }
+
+    #[test]
+    fn test_tool_registry_tool_count() {
+        let config = test_config();
+        let registry = ToolRegistry::new_sub_agent(&config);
+        assert_eq!(registry.tool_count(), 13); // Sub-agent registry has 13 tools
+    }
+
+    #[test]
+    fn test_tool_registry_has_tool() {
+        let config = test_config();
+        let registry = ToolRegistry::new_sub_agent(&config);
+        assert!(registry.has_tool("bash"));
+        assert!(registry.has_tool("read_file"));
+        assert!(registry.has_tool("write_file"));
+        assert!(!registry.has_tool("spawn_agent")); // Not in sub-agent registry
+        assert!(!registry.has_tool("nonexistent_tool"));
+    }
+
+    #[test]
+    fn test_tool_registry_tool_names() {
+        let config = test_config();
+        let registry = ToolRegistry::new_sub_agent(&config);
+        let names = registry.tool_names();
+        assert_eq!(names.len(), 13);
+        assert!(names.contains(&"bash".to_string()));
+        assert!(names.contains(&"read_file".to_string()));
+        assert!(!names.contains(&"spawn_agent".to_string()));
     }
 }
