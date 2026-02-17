@@ -24,7 +24,7 @@ fn default_max_tool_iterations() -> usize {
     100
 }
 fn default_max_history_messages() -> usize {
-    50
+    10
 }
 fn default_data_dir() -> String {
     // Use XDG data directory or fallback to ~/.local/share/sandy
@@ -44,10 +44,10 @@ fn default_timezone() -> String {
     "UTC".into()
 }
 fn default_max_session_messages() -> usize {
-    40
+    25
 }
 fn default_compact_keep_recent() -> usize {
-    20
+    10
 }
 fn default_whatsapp_webhook_port() -> u16 {
     8080
@@ -70,6 +70,13 @@ fn default_agents_file() -> String {
 fn default_memory_file() -> String {
     "./soul/data/MEMORY.md".into()
 }
+fn default_fallback_models() -> Vec<String> {
+    vec![
+        "anthropic/claude-sonnet-3.5".into(),
+        "openai/gpt-4o".into(),
+        "anthropic/claude-3.5-haiku".into(),
+    ]
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -83,6 +90,8 @@ pub struct Config {
     pub api_key: String,
     #[serde(default = "default_model")]
     pub model: String,
+    #[serde(default = "default_fallback_models")]
+    pub fallback_models: Vec<String>,
     #[serde(default)]
     pub llm_base_url: Option<String>,
     #[serde(default = "default_max_tokens")]
@@ -265,15 +274,15 @@ mod tests {
             llm_base_url: None,
             max_tokens: 8192,
             max_tool_iterations: 100,
-            max_history_messages: 50,
+            max_history_messages: 10,
             data_dir: "./sandy.data".into(),
             working_dir: "./tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
             allowed_groups: vec![],
             control_chat_ids: vec![],
-            max_session_messages: 40,
-            compact_keep_recent: 20,
+            max_session_messages: 25,
+            compact_keep_recent: 10,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,
@@ -281,6 +290,13 @@ mod tests {
             discord_bot_token: None,
             discord_allowed_channels: vec![],
             show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
         }
     }
 
@@ -291,13 +307,13 @@ mod tests {
         assert_eq!(cloned.telegram_bot_token, "tok");
         assert_eq!(cloned.max_tokens, 8192);
         assert_eq!(cloned.max_tool_iterations, 100);
-        assert_eq!(cloned.max_history_messages, 50);
+        assert_eq!(cloned.max_history_messages, 10);
         assert!(cloned.openai_api_key.is_none());
         assert_eq!(cloned.timezone, "UTC");
         assert!(cloned.allowed_groups.is_empty());
         assert!(cloned.control_chat_ids.is_empty());
-        assert_eq!(cloned.max_session_messages, 40);
-        assert_eq!(cloned.compact_keep_recent, 20);
+        assert_eq!(cloned.max_session_messages, 25);
+        assert_eq!(cloned.compact_keep_recent, 10);
         assert!(cloned.discord_bot_token.is_none());
         assert!(cloned.discord_allowed_channels.is_empty());
         let _ = format!("{:?}", config);

@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use serde_json::json;
+use std::sync::Arc;
 use tracing::info;
 
 use super::{auth_context_from_input, schema_object, Tool, ToolRegistry, ToolResult};
@@ -10,12 +11,22 @@ const MAX_SUB_AGENT_ITERATIONS: usize = 10;
 
 pub struct SubAgentTool {
     config: Config,
+    registry: Option<Arc<ToolRegistry>>,
 }
 
 impl SubAgentTool {
     pub fn new(config: &Config) -> Self {
         SubAgentTool {
             config: config.clone(),
+            registry: None,
+        }
+    }
+
+    /// Create a SubAgentTool with a custom tool registry (for filtered tool access)
+    pub fn with_registry(config: &Config, registry: ToolRegistry) -> Self {
+        SubAgentTool {
+            config: config.clone(),
+            registry: Some(Arc::new(registry)),
         }
     }
 }
@@ -58,7 +69,17 @@ impl Tool for SubAgentTool {
         info!("Sub-agent starting task: {}", task);
 
         let llm = crate::llm::create_provider(&self.config);
-        let tools = ToolRegistry::new_sub_agent(&self.config);
+
+        // Use custom registry if provided, otherwise create default sub-agent registry
+        let default_registry = ToolRegistry::new_sub_agent(&self.config);
+        let tools: &ToolRegistry = if let Some(ref registry_arc) = self.registry {
+            info!("Using custom tool registry with {} tools", registry_arc.tool_count());
+            registry_arc.as_ref()
+        } else {
+            info!("Using default sub-agent registry with {} tools", default_registry.tool_count());
+            &default_registry
+        };
+
         let tool_defs = tools.definitions();
 
         let system_prompt = "You are a sub-agent assistant. Complete the given task thoroughly and return a clear, concise result. You have access to tools for file operations, search, and web access. Focus on the task and provide actionable output.".to_string();
@@ -194,15 +215,15 @@ mod tests {
             llm_base_url: None,
             max_tokens: 4096,
             max_tool_iterations: 100,
-            max_history_messages: 50,
+            max_history_messages: 10,
             data_dir: "/tmp".into(),
             working_dir: "/tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
             allowed_groups: vec![],
             control_chat_ids: vec![],
-            max_session_messages: 40,
-            compact_keep_recent: 20,
+            max_session_messages: 25,
+            compact_keep_recent: 10,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,
@@ -210,6 +231,13 @@ mod tests {
             discord_bot_token: None,
             discord_allowed_channels: vec![],
             show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
         }
     }
 
@@ -240,7 +268,7 @@ mod tests {
         let config = test_config();
         let registry = ToolRegistry::new_sub_agent(&config);
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 11);
+        assert_eq!(defs.len(), 13);
     }
 
     #[test]

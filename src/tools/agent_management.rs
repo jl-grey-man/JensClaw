@@ -128,6 +128,62 @@ impl SpawnAgentTool {
         format!("job_{}_{:04x}", timestamp, random)
     }
 
+    /// Get format-specific example based on output format
+    fn get_format_example(format: &str) -> String {
+        match format {
+            "structured_json" | "json" => {
+                r#"
+*** OUTPUT FORMAT EXAMPLE (JSON) ***
+{
+  "title": "Example Title",
+  "summary": "Brief overview of findings",
+  "sources": [
+    {
+      "title": "Source Title",
+      "url": "https://example.com",
+      "summary": "What this source says",
+      "date": "2026-02-16"
+    }
+  ],
+  "key_points": [
+    "Point 1",
+    "Point 2"
+  ]
+}
+
+CRITICAL: Output MUST be valid JSON. Test with json.loads() before saving."#.to_string()
+            }
+            "markdown_article" | "markdown" | "md" => {
+                r#"
+*** OUTPUT FORMAT EXAMPLE (Markdown) ***
+# Article Title
+
+Brief introduction paragraph.
+
+## Section 1: Main Topic
+
+Content with **bold** and *italic* formatting.
+
+### Subsection
+
+- Bullet point 1
+- Bullet point 2
+
+## Section 2: Additional Topic
+
+More content here.
+
+## Sources
+
+1. [Source Title](https://example.com) - Brief description
+2. [Another Source](https://example.com/2) - Brief description
+
+CRITICAL: Use proper markdown formatting with headers, lists, and links."#.to_string()
+            }
+            _ => String::new()
+        }
+    }
+
     /// Build task prompt for sub-agent
     fn build_task_prompt(
         &self,
@@ -140,8 +196,10 @@ impl SpawnAgentTool {
 2. FILE SYSTEM ONLY: Perform your task and save results to the specified output file.
 3. NO CHIT-CHAT: Do not converse. Output only work product or error messages.
 4. SOURCE OF TRUTH: If you cannot complete the task, write ERROR to the output file.
-5. TOOL RESTRICTIONS: You can only use the tools explicitly allowed to you.
-6. OUTPUT REQUIRED: You MUST save your work to the specified file before completing."#;
+5. TOOL RESTRICTIONS: You can only use the tools explicitly allowed to you. Attempting to use unauthorized tools will fail.
+6. OUTPUT REQUIRED: You MUST save your work to the specified file before completing.
+7. FORMAT COMPLIANCE: Your output MUST match the specified format exactly. Invalid format = FAILURE.
+8. CONSTRAINT COMPLIANCE: You MUST follow ALL constraints listed below. Violating constraints = FAILURE."#;
 
         let constraints_text = if agent_config.constraints.is_empty() {
             String::new()
@@ -150,8 +208,27 @@ impl SpawnAgentTool {
                 agent_config.constraints.join("\n"))
         };
 
+        let output_format = if agent_config.output_format.is_empty() {
+            "text"
+        } else {
+            &agent_config.output_format
+        };
+
+        let format_example = Self::get_format_example(output_format);
+
+        let final_checklist = r#"
+
+*** BEFORE COMPLETING - VERIFY ***
+✓ Output saved to specified file path
+✓ Format matches requirement (JSON/Markdown/etc)
+✓ All constraints followed
+✓ File is readable and not corrupted
+✓ No errors or incomplete data
+
+If ANY check fails, write ERROR to the output file with details."#;
+
         format!(
-            "{guard_rails}\n\n*** YOUR ROLE ***\nName: {name}\nRole: {role}\n{description}\n\n*** YOUR TASK ***\n{task}\n\n*** OUTPUT REQUIREMENTS ***\nSave your results to: {output_path}\nFormat: {format}{constraints}\n\nBegin working now. Remember to save your output to the specified file.",
+            "{guard_rails}\n\n*** YOUR ROLE ***\nName: {name}\nRole: {role}\n{description}\n\n*** YOUR TASK ***\n{task}\n\n*** OUTPUT REQUIREMENTS ***\nSave your results to: {output_path}\nFormat: {format}{format_example}{constraints}{final_checklist}\n\nBegin working now. Remember to save your output to the specified file.",
             guard_rails = guard_rails,
             name = agent_config.name,
             role = agent_config.role,
@@ -162,56 +239,170 @@ impl SpawnAgentTool {
             },
             task = task,
             output_path = output_path,
-            format = if agent_config.output_format.is_empty() {
-                "text".to_string()
-            } else {
-                agent_config.output_format.clone()
-            },
-            constraints = constraints_text
+            format = output_format,
+            format_example = format_example,
+            constraints = constraints_text,
+            final_checklist = final_checklist
         )
     }
 
     /// Create a filtered tool registry with only allowed tools
-    fn create_filtered_registry(&self, allowed_tools: &[String]) -> ToolRegistry {
-        // Get base sub-agent registry
-        let base_registry = ToolRegistry::new_sub_agent(&self.config);
+    pub fn create_filtered_registry(&self, allowed_tools: &[String]) -> ToolRegistry {
+        use std::path::PathBuf;
 
-        // Filter to only allowed tools
-        let all_defs = base_registry.definitions();
+        let working_dir = PathBuf::from(&self.config.working_dir);
+        let data_dir = PathBuf::from(&self.config.data_dir);
+        let skills_data_dir = self.config.skills_data_dir();
+
+        // Start with empty registry
+        let mut filtered = ToolRegistry::empty();
+
+        // Build allowed_tools set for O(1) lookup
         let allowed_set: std::collections::HashSet<&str> =
             allowed_tools.iter().map(|s| s.as_str()).collect();
 
-        // Build new registry with only allowed tools
-        let filtered = ToolRegistry::new_sub_agent(&self.config);
+        // Add only allowed tools
+        // NOTE: Tools expect &str not &PathBuf, so use as_path().to_str().unwrap()
 
-        // Re-add only the allowed tools
-        for def in all_defs {
-            if allowed_set.contains(def.name.as_str()) {
-                // Tool is allowed, keep it
-                // Note: We need to add the actual tool, not just definition
-                // This is handled by ToolRegistry::new_sub_agent already creating all tools
-                // We just need to verify the tool is in allowed list during execution
-            }
+        if allowed_set.contains("bash") {
+            filtered.add_tool(Box::new(super::bash::BashTool::new(
+                working_dir.to_str().unwrap()
+            )));
         }
+        if allowed_set.contains("browser") {
+            filtered.add_tool(Box::new(super::browser::BrowserTool::new(
+                data_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("read_file") {
+            filtered.add_tool(Box::new(super::read_file::ReadFileTool::new(
+                working_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("write_file") {
+            filtered.add_tool(Box::new(super::write_file::WriteFileTool::new(
+                working_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("edit_file") {
+            filtered.add_tool(Box::new(super::edit_file::EditFileTool::new(
+                working_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("glob") {
+            filtered.add_tool(Box::new(super::glob::GlobTool::new(
+                working_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("grep") {
+            filtered.add_tool(Box::new(super::grep::GrepTool::new(
+                working_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("read_memory") {
+            filtered.add_tool(Box::new(super::memory::ReadMemoryTool::new(
+                data_dir.to_str().unwrap()
+            )));
+        }
+        if allowed_set.contains("web_fetch") {
+            filtered.add_tool(Box::new(super::web_fetch::WebFetchTool));
+        }
+        if allowed_set.contains("web_search") {
+            filtered.add_tool(Box::new(super::web_search::WebSearchTool::new(&self.config)));
+        }
+        if allowed_set.contains("activate_skill") {
+            filtered.add_tool(Box::new(super::activate_skill::ActivateSkillTool::new(&skills_data_dir)));
+        }
+
+        info!(
+            "Created filtered registry with {} tools (allowed: {:?})",
+            filtered.tool_count(),
+            allowed_tools
+        );
 
         filtered
     }
 
-    /// Verify output file exists and has content
-    async fn verify_output(&self, output_path: &str) -> Result<(bool, u64), String> {
+    /// Verify output file exists, has content, and matches expected format
+    async fn verify_output(
+        &self,
+        output_path: &str,
+        expected_format: Option<&str>,
+    ) -> Result<(bool, u64), String> {
         let path = Path::new(output_path);
 
         if !path.exists() {
             return Ok((false, 0));
         }
 
-        match tokio::fs::metadata(path).await {
-            Ok(metadata) => {
-                let size = metadata.len();
-                Ok((size > 0, size))
-            }
-            Err(e) => Err(format!("Failed to read output file metadata: {}", e)),
+        let metadata = match tokio::fs::metadata(path).await {
+            Ok(m) => m,
+            Err(e) => return Err(format!("Failed to read output file metadata: {}", e)),
+        };
+
+        let size = metadata.len();
+        if size == 0 {
+            return Ok((false, 0));
         }
+
+        // If format validation requested, check the file contents
+        if let Some(format) = expected_format {
+            let contents = match tokio::fs::read_to_string(path).await {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("Failed to read output file for validation: {}", e);
+                    // Still consider the file valid if we can't read it (permission issues, etc.)
+                    return Ok((true, size));
+                }
+            };
+
+            // Validate based on expected format
+            let is_valid = match format {
+                "structured_json" | "json" => {
+                    // Try to parse as JSON
+                    match serde_json::from_str::<serde_json::Value>(&contents) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            error!(
+                                "Output file {} is not valid JSON (expected {}): {}",
+                                output_path, format, e
+                            );
+                            false
+                        }
+                    }
+                }
+                "markdown_article" | "markdown" | "md" => {
+                    // Basic markdown validation: should have some content and markdown markers
+                    let has_content = contents.trim().len() > 10;
+                    let has_markdown = contents.contains('#')
+                        || contents.contains('*')
+                        || contents.contains('[')
+                        || contents.contains('\n');
+
+                    if !has_content || !has_markdown {
+                        error!(
+                            "Output file {} does not appear to be valid markdown (expected {})",
+                            output_path, format
+                        );
+                    }
+
+                    has_content && has_markdown
+                }
+                "text" | _ => {
+                    // For plain text or unknown formats, just check it has content
+                    contents.trim().len() > 0
+                }
+            };
+
+            if !is_valid {
+                return Err(format!(
+                    "Output file {} failed format validation (expected {})",
+                    output_path, format
+                ));
+            }
+        }
+
+        Ok((true, size))
     }
 }
 
@@ -312,13 +503,17 @@ impl Tool for SpawnAgentTool {
             registry.insert(job_id.clone(), agent_info);
         }
 
-        // Step 4: Build task prompt
+        // Step 4: Create filtered tool registry based on agent's allowed tools
+        info!("Creating filtered registry for agent '{}' with tools: {:?}", agent_id, agent_config.tools);
+        let filtered_registry = self.create_filtered_registry(&agent_config.tools);
+
+        // Step 5: Build task prompt
         let task_prompt = self.build_task_prompt(&agent_config, task, output_path);
 
-        // Step 5: Execute via sub_agent
-        info!("Executing sub_agent for job '{}'", job_id);
+        // Step 6: Execute via sub_agent with filtered registry
+        info!("Executing sub_agent for job '{}' with {} filtered tools", job_id, filtered_registry.tool_count());
 
-        let sub_agent_tool = crate::tools::sub_agent::SubAgentTool::new(&self.config);
+        let sub_agent_tool = crate::tools::sub_agent::SubAgentTool::with_registry(&self.config, filtered_registry);
         let sub_agent_input = json!({
             "task": task_prompt,
             "context": format!("You are agent '{}' with role: {}. Tools available: {:?}",
@@ -327,16 +522,22 @@ impl Tool for SpawnAgentTool {
 
         let sub_agent_result = sub_agent_tool.execute(sub_agent_input).await;
 
-        // Step 6: Verify output
-        let (output_exists, output_size) = match self.verify_output(output_path).await {
+        // Step 7: Verify output with format validation
+        let expected_format = if agent_config.output_format.is_empty() {
+            None
+        } else {
+            Some(agent_config.output_format.as_str())
+        };
+
+        let (output_exists, output_size) = match self.verify_output(output_path, expected_format).await {
             Ok(result) => result,
             Err(e) => {
-                warn!("Failed to verify output: {}", e);
+                error!("Output verification failed: {}", e);
                 (false, 0)
             }
         };
 
-        // Step 7: Update registry with result
+        // Step 8: Update registry with result
         {
             let mut registry = AGENT_REGISTRY.lock().unwrap();
             if let Some(agent) = registry.get_mut(&job_id) {
@@ -572,15 +773,15 @@ mod tests {
             llm_base_url: None,
             max_tokens: 4096,
             max_tool_iterations: 100,
-            max_history_messages: 50,
+            max_history_messages: 10,
             data_dir: "/tmp".into(),
             working_dir: "/tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
             allowed_groups: vec![],
             control_chat_ids: vec![],
-            max_session_messages: 40,
-            compact_keep_recent: 20,
+            max_session_messages: 25,
+            compact_keep_recent: 10,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,
@@ -588,6 +789,13 @@ mod tests {
             discord_bot_token: None,
             discord_allowed_channels: vec![],
             show_thinking: false,
+            fallback_models: vec![],
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
         }
     }
 

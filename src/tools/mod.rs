@@ -26,6 +26,7 @@ pub mod sub_agent;
 pub mod tool_filter;
 pub mod todo;
 pub mod tracking;
+pub mod transcribe;
 pub mod web_fetch;
 pub mod web_search;
 pub mod write_file;
@@ -185,6 +186,7 @@ impl ToolRegistry {
             Box::new(schedule::GetTaskHistoryTool::new(db.clone())),
             Box::new(bash::BashTool::new(&config.working_dir)),
             Box::new(browser::BrowserTool::new(&config.data_dir)),
+            Box::new(transcribe::TranscribeTool::new(config.openai_api_key.clone().unwrap_or_default())),
             Box::new(read_file::ReadFileTool::new(&config.working_dir)),
             Box::new(write_file::WriteFileTool::new(&config.working_dir)),
             Box::new(edit_file::EditFileTool::new(&config.working_dir)),
@@ -293,7 +295,19 @@ impl ToolRegistry {
     }
 
     pub fn definitions(&self) -> Vec<ToolDefinition> {
-        self.tools.iter().map(|t| t.definition()).collect()
+        self.tools
+            .iter()
+            .filter(|t| {
+                // For main bot, exclude tools that are forbidden by the tool filter
+                // No point paying tokens for tool definitions Sandy can't use
+                if self.is_main_bot {
+                    tool_filter::can_sandy_use(t.name()).is_ok()
+                } else {
+                    true
+                }
+            })
+            .map(|t| t.definition())
+            .collect()
     }
 
     pub async fn execute(&self, name: &str, input: serde_json::Value) -> ToolResult {
@@ -375,15 +389,15 @@ mod tests {
             llm_base_url: None,
             max_tokens: 4096,
             max_tool_iterations: 100,
-            max_history_messages: 50,
+            max_history_messages: 10,
             data_dir: "/tmp".into(),
             working_dir: "/tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
             allowed_groups: vec![],
             control_chat_ids: vec![],
-            max_session_messages: 40,
-            compact_keep_recent: 20,
+            max_session_messages: 25,
+            compact_keep_recent: 10,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,

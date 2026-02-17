@@ -190,9 +190,45 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn test_config() -> Config {
+        Config {
+            telegram_bot_token: "tok".into(),
+            bot_username: "bot".into(),
+            llm_provider: "anthropic".into(),
+            api_key: "key".into(),
+            model: "claude-test".into(),
+            fallback_models: vec![],
+            llm_base_url: None,
+            max_tokens: 4096,
+            max_tool_iterations: 100,
+            max_history_messages: 10,
+            data_dir: "/tmp".into(),
+            working_dir: "/tmp".into(),
+            openai_api_key: None,
+            timezone: "UTC".into(),
+            allowed_groups: vec![],
+            control_chat_ids: vec![],
+            max_session_messages: 25,
+            compact_keep_recent: 10,
+            whatsapp_access_token: None,
+            whatsapp_phone_number_id: None,
+            whatsapp_verify_token: None,
+            whatsapp_webhook_port: 8080,
+            discord_bot_token: None,
+            discord_allowed_channels: vec![],
+            show_thinking: false,
+            tavily_api_key: None,
+            web_port: 3000,
+            soul_file: "soul/SOUL.md".into(),
+            identity_file: "soul/IDENTITY.md".into(),
+            agents_file: "soul/AGENTS.md".into(),
+            memory_file: "soul/data/MEMORY.md".into(),
+        }
+    }
+
     #[test]
     fn test_web_search_definition() {
-        let tool = WebSearchTool::new();
+        let tool = WebSearchTool::new(&test_config());
         assert_eq!(tool.name(), "web_search");
         let def = tool.definition();
         assert_eq!(def.name, "web_search");
@@ -206,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_web_search_missing_query() {
-        let tool = WebSearchTool::new();
+        let tool = WebSearchTool::new(&test_config());
         let result = tool.execute(json!({})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Missing required parameter: query"));
@@ -214,7 +250,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_web_search_null_query() {
-        let tool = WebSearchTool::new();
+        let tool = WebSearchTool::new(&test_config());
         let result = tool.execute(json!({"query": null})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Missing required parameter: query"));
@@ -222,17 +258,10 @@ mod tests {
 
     #[test]
     fn test_api_key_not_set() {
-        // Temporarily clear the env var for testing
-        let original = env::var("TAVILY_API_KEY").ok();
-        env::remove_var("TAVILY_API_KEY");
-        
-        let result = WebSearchTool::get_api_key();
+        let config = test_config();
+        let tool = WebSearchTool::new(&config);
+        let result = tool.get_api_key();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("TAVILY_API_KEY environment variable not set"));
-        
-        // Restore if it existed
-        if let Some(key) = original {
-            env::set_var("TAVILY_API_KEY", key);
-        }
+        assert!(result.unwrap_err().contains("Tavily API key not configured"));
     }
 }
