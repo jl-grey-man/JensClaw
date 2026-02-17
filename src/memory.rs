@@ -1,22 +1,25 @@
 use std::path::{Path, PathBuf};
 
 pub struct MemoryManager {
-    data_dir: PathBuf,
+    base_dir: PathBuf,
+    groups_dir: PathBuf,
 }
 
 impl MemoryManager {
     pub fn new(data_dir: &str) -> Self {
+        let base = PathBuf::from(data_dir);
         MemoryManager {
-            data_dir: PathBuf::from(data_dir).join("groups"),
+            groups_dir: base.join("groups"),
+            base_dir: base,
         }
     }
 
     fn global_memory_path(&self) -> PathBuf {
-        self.data_dir.join("AGENTS.md")
+        self.groups_dir.join("AGENTS.md")
     }
 
     fn chat_memory_path(&self, chat_id: i64) -> PathBuf {
-        self.data_dir.join(chat_id.to_string()).join("AGENTS.md")
+        self.groups_dir.join(chat_id.to_string()).join("AGENTS.md")
     }
 
     pub fn read_global_memory(&self) -> Option<String> {
@@ -47,9 +50,45 @@ impl MemoryManager {
         std::fs::write(path, content)
     }
 
+    /// Read the last N entries from a runtime memory file (insights, solutions, patterns, errors)
+    fn read_runtime_memory_entries(&self, filename: &str, max_entries: usize) -> Option<String> {
+        let memory_dir = self.base_dir.join("memory");
+        let path = memory_dir.join(format!("{}.md", filename));
+        
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            // Split by "## " headers (timestamp markers)
+            let entries: Vec<&str> = content.split("\n## ").collect();
+            
+            if entries.len() <= 1 {
+                return None; // No entries
+            }
+            
+            // Take last N entries (skip first empty split)
+            let start_idx = if entries.len() > max_entries + 1 { 
+                entries.len() - max_entries 
+            } else { 
+                1 
+            };
+            
+            let last_entries: Vec<String> = entries[start_idx..]
+                .iter()
+                .map(|e| format!("## {}", e.trim()))
+                .collect();
+            
+            if last_entries.is_empty() {
+                None
+            } else {
+                Some(last_entries.join("\n\n"))
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn build_memory_context(&self, chat_id: i64) -> String {
         let mut context = String::new();
 
+        // Add AGENTS.md (global and chat-specific)
         if let Some(global) = self.read_global_memory() {
             if !global.trim().is_empty() {
                 context.push_str("<global_memory>\n");
@@ -66,12 +105,20 @@ impl MemoryManager {
             }
         }
 
+        // Inject last 5 insights at conversation start
+        if let Some(insights) = self.read_runtime_memory_entries("insights", 5) {
+            context.push_str("<recent_insights>\n");
+            context.push_str("Most recent learnings and rules:\n\n");
+            context.push_str(&insights);
+            context.push_str("\n</recent_insights>\n\n");
+        }
+
         context
     }
 
     #[allow(dead_code)]
     pub fn groups_dir(&self) -> &Path {
-        &self.data_dir
+        &self.groups_dir
     }
 }
 
@@ -138,7 +185,7 @@ mod tests {
     fn test_build_memory_context_empty() {
         let (mm, dir) = test_memory_manager();
         let ctx = mm.build_memory_context(100);
-        assert!(ctx.is_empty());
+        assert!(ctx.is_empty() || ctx.contains("<recent_insights>"));
         cleanup(&dir);
     }
 
@@ -172,8 +219,8 @@ mod tests {
         let (mm, dir) = test_memory_manager();
         mm.write_global_memory("   \n  ").unwrap();
         let ctx = mm.build_memory_context(100);
-        // Whitespace-only content should be ignored
-        assert!(ctx.is_empty());
+        // Whitespace-only content should be ignored, but insights might be present
+        assert!(!ctx.contains("<global_memory>"));
         cleanup(&dir);
     }
 

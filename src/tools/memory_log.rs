@@ -157,10 +157,26 @@ Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_sch
 
         // Return success message with last 5 entries for context refresh
         let suffix = if category == "solutions" { " with verification" } else { "" };
-        
-        ToolResult::success(format!(
+
+        let mut result = format!(
             "✅ Recorded to {}.md{}\n\n[MEMORY REFRESH - Last 5 entries from {}.md:]\n{}",
             category, suffix, category, last_entries
-        ))
+        );
+
+        // Always include insights.md content so user preferences take effect immediately
+        if category != "insights" {
+            let insights_path = self.memory_dir.join("insights.md");
+            if let Ok(insights_content) = tokio::fs::read_to_string(&insights_path).await {
+                if !insights_content.trim().is_empty() {
+                    let insights_entries = Self::get_last_entries(&insights_content, 5);
+                    result.push_str(&format!(
+                        "\n\n[ACTIVE RULES from insights.md:]\n{}",
+                        insights_entries
+                    ));
+                }
+            }
+        }
+
+        ToolResult::success(result)
     }
 }
