@@ -23,6 +23,9 @@ fn default_max_tokens() -> u32 {
 fn default_max_tool_iterations() -> usize {
     100
 }
+fn default_max_sub_agent_iterations() -> usize {
+    25
+}
 fn default_max_history_messages() -> usize {
     10
 }
@@ -98,6 +101,8 @@ pub struct Config {
     pub max_tokens: u32,
     #[serde(default = "default_max_tool_iterations")]
     pub max_tool_iterations: usize,
+    #[serde(default = "default_max_sub_agent_iterations")]
+    pub max_sub_agent_iterations: usize,
     #[serde(default = "default_max_history_messages")]
     pub max_history_messages: usize,
     #[serde(default = "default_data_dir")]
@@ -261,10 +266,10 @@ impl Config {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    pub fn test_config() -> Config {
+    pub(crate) fn test_config() -> Config {
         Config {
             telegram_bot_token: "tok".into(),
             bot_username: "bot".into(),
@@ -274,6 +279,7 @@ mod tests {
             llm_base_url: None,
             max_tokens: 8192,
             max_tool_iterations: 100,
+            max_sub_agent_iterations: 25,
             max_history_messages: 10,
             data_dir: "./sandy.data".into(),
             working_dir: "./tmp".into(),

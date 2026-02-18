@@ -109,7 +109,7 @@ pub fn authorize_chat_access(input: &serde_json::Value, target_chat_id: i64) -> 
     Ok(())
 }
 
-fn inject_auth_context(input: serde_json::Value, auth: &ToolAuthContext) -> serde_json::Value {
+pub fn inject_auth_context(input: serde_json::Value, auth: &ToolAuthContext) -> serde_json::Value {
     let mut obj = match input {
         serde_json::Value::Object(map) => map,
         _ => serde_json::Map::new(),
@@ -199,6 +199,11 @@ impl ToolRegistry {
             Box::new(memory_log::MemoryLogTool::new(
                 PathBuf::from(&config.data_dir).join("memory")
             )),
+            // Pattern learning tools
+            Box::new(patterns::ReadPatternsTool::new(&config.data_dir)),
+            Box::new(patterns::CreatePatternTool::new(&config.data_dir)),
+            Box::new(patterns::AddObservationTool::new(&config.data_dir)),
+            Box::new(patterns::UpdateHypothesisTool::new(&config.data_dir)),
             Box::new(web_fetch::WebFetchTool),
             Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
@@ -254,6 +259,11 @@ impl ToolRegistry {
             Box::new(memory_log::MemoryLogTool::new(
                 PathBuf::from(&config.data_dir).join("memory")
             )),
+            // Pattern learning tools
+            Box::new(patterns::ReadPatternsTool::new(&config.data_dir)),
+            Box::new(patterns::CreatePatternTool::new(&config.data_dir)),
+            Box::new(patterns::AddObservationTool::new(&config.data_dir)),
+            Box::new(patterns::UpdateHypothesisTool::new(&config.data_dir)),
             Box::new(web_fetch::WebFetchTool),
             Box::new(web_search::WebSearchTool::new(config)),
             Box::new(activate_skill::ActivateSkillTool::new(&skills_data_dir)),
@@ -377,43 +387,7 @@ pub fn schema_object(properties: serde_json::Value, required: &[&str]) -> serde_
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Helper to create a minimal test config
-    fn test_config() -> Config {
-        Config {
-            telegram_bot_token: "tok".into(),
-            bot_username: "bot".into(),
-            llm_provider: "anthropic".into(),
-            api_key: "key".into(),
-            model: "claude-test".into(),
-            llm_base_url: None,
-            max_tokens: 4096,
-            max_tool_iterations: 100,
-            max_history_messages: 10,
-            data_dir: "/tmp".into(),
-            working_dir: "/tmp".into(),
-            openai_api_key: None,
-            timezone: "UTC".into(),
-            allowed_groups: vec![],
-            control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
-            whatsapp_access_token: None,
-            whatsapp_phone_number_id: None,
-            whatsapp_verify_token: None,
-            whatsapp_webhook_port: 8080,
-            discord_bot_token: None,
-            discord_allowed_channels: vec![],
-            show_thinking: false,
-            fallback_models: vec![],
-            tavily_api_key: None,
-            web_port: 3000,
-            soul_file: "soul/SOUL.md".into(),
-            identity_file: "soul/IDENTITY.md".into(),
-            agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/runtime/MEMORY.md".into(),
-        }
-    }
+    use crate::config::tests::test_config;
 
     #[test]
     fn test_tool_result_success() {
@@ -491,7 +465,7 @@ mod tests {
     fn test_tool_registry_tool_count() {
         let config = test_config();
         let registry = ToolRegistry::new_sub_agent(&config);
-        assert_eq!(registry.tool_count(), 13); // Sub-agent registry has 13 tools
+        assert_eq!(registry.tool_count(), 17); // Sub-agent registry has 17 tools
     }
 
     #[test]
@@ -510,7 +484,7 @@ mod tests {
         let config = test_config();
         let registry = ToolRegistry::new_sub_agent(&config);
         let names = registry.tool_names();
-        assert_eq!(names.len(), 13);
+        assert_eq!(names.len(), 17);
         assert!(names.contains(&"bash".to_string()));
         assert!(names.contains(&"read_file".to_string()));
         assert!(!names.contains(&"spawn_agent".to_string()));

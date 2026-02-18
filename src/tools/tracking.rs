@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::activity::{ActivityEntry, ActivityLogger};
+use crate::atomic_io::atomic_write_json;
 use crate::claude::ToolDefinition;
 
 use super::{schema_object, Tool, ToolResult};
@@ -66,6 +67,7 @@ pub struct TrackingData {
     pub goals: Vec<Goal>,
     pub projects: Vec<Project>,
     pub tasks: Vec<Task>,
+    #[serde(default)]
     pub reminders: Vec<Reminder>,
     pub meta: TrackingMeta,
 }
@@ -83,18 +85,20 @@ pub fn tracking_path(data_dir: &Path) -> PathBuf {
 pub fn read_tracking(data_dir: &Path) -> TrackingData {
     let path = tracking_path(data_dir);
     match std::fs::read_to_string(&path) {
-        Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| default_tracking()),
+        Ok(content) => match serde_json::from_str(&content) {
+            Ok(data) => data,
+            Err(e) => {
+                error!("Failed to deserialize tracking from {}: {}", path.display(), e);
+                default_tracking()
+            }
+        },
         Err(_) => default_tracking(),
     }
 }
 
 pub fn write_tracking(data_dir: &Path, data: &TrackingData) -> std::io::Result<()> {
     let path = tracking_path(data_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let json = serde_json::to_string_pretty(data).map_err(std::io::Error::other)?;
-    std::fs::write(path, json)
+    atomic_write_json(&path, data)
 }
 
 pub fn default_tracking() -> TrackingData {
@@ -232,8 +236,20 @@ fn format_reminders(reminders: &[Reminder]) -> String {
     let mut out = String::new();
     for reminder in reminders {
         let icon = if reminder.is_recurring { "🔄" } else { "⏰" };
+        
+        // Try to parse the schedule as an ISO 8601 datetime and add day-of-week
+        let schedule_display = if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&reminder.schedule) {
+            // Format with day name: "Saturday 2026-02-21 09:00 UTC"
+            let day_name = dt.format("%A").to_string();
+            let date_time = dt.format("%Y-%m-%d %H:%M %Z").to_string();
+            format!("{} {}", day_name, date_time)
+        } else {
+            // If not parseable as datetime (e.g., cron expression), show as-is
+            reminder.schedule.clone()
+        };
+        
         out.push_str(&format!("{} {} - {} ({}.)\n", 
-            icon, reminder.schedule, reminder.message, reminder.id));
+            icon, schedule_display, reminder.message, reminder.id));
     }
     out
 }

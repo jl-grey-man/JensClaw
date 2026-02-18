@@ -188,43 +188,8 @@ fn format_response(response: &tavily::SearchResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::tests::test_config;
     use serde_json::json;
-
-    fn test_config() -> Config {
-        Config {
-            telegram_bot_token: "tok".into(),
-            bot_username: "bot".into(),
-            llm_provider: "anthropic".into(),
-            api_key: "key".into(),
-            model: "claude-test".into(),
-            fallback_models: vec![],
-            llm_base_url: None,
-            max_tokens: 4096,
-            max_tool_iterations: 100,
-            max_history_messages: 10,
-            data_dir: "/tmp".into(),
-            working_dir: "/tmp".into(),
-            openai_api_key: None,
-            timezone: "UTC".into(),
-            allowed_groups: vec![],
-            control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
-            whatsapp_access_token: None,
-            whatsapp_phone_number_id: None,
-            whatsapp_verify_token: None,
-            whatsapp_webhook_port: 8080,
-            discord_bot_token: None,
-            discord_allowed_channels: vec![],
-            show_thinking: false,
-            tavily_api_key: None,
-            web_port: 3000,
-            soul_file: "soul/SOUL.md".into(),
-            identity_file: "soul/IDENTITY.md".into(),
-            agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
-        }
-    }
 
     #[test]
     fn test_web_search_definition() {

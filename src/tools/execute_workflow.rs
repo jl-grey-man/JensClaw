@@ -61,8 +61,8 @@ impl ExecuteWorkflowTool {
         Ok(workflow_path)
     }
 
-    /// Verify file exists and has content
-    async fn verify_file(&self, path: &str) -> Result<(bool, u64, Option<String>), String> {
+    /// Verify file exists, has content, and optionally matches expected format.
+    async fn verify_file(&self, path: &str, expected_format: Option<&str>) -> Result<(bool, u64, Option<String>), String> {
         let file_path = Path::new(path);
 
         if !file_path.exists() {
@@ -76,12 +76,39 @@ impl ExecuteWorkflowTool {
                     return Ok((false, 0, Some("File exists but is empty".to_string())));
                 }
 
-                // Try to read first few lines to verify it's valid
+                // Try to read and validate content
                 match tokio::fs::read_to_string(file_path).await {
                     Ok(content) => {
                         if content.starts_with("ERROR:") || content.contains("\"error\"") {
                             return Ok((false, size, Some(format!("File contains error: {}", &content[..content.len().min(200)]))));
                         }
+
+                        // Format validation (step 17)
+                        if let Some(format) = expected_format {
+                            match format {
+                                "structured_json" | "json" => {
+                                    if serde_json::from_str::<serde_json::Value>(&content).is_err() {
+                                        return Ok((false, size, Some(format!(
+                                            "Output file is not valid JSON (expected {})", format
+                                        ))));
+                                    }
+                                }
+                                "markdown_article" | "markdown" | "md" => {
+                                    let has_content = content.trim().len() > 10;
+                                    let has_markdown = content.contains('#')
+                                        || content.contains('*')
+                                        || content.contains('[')
+                                        || content.contains('\n');
+                                    if !has_content || !has_markdown {
+                                        return Ok((false, size, Some(format!(
+                                            "Output does not appear to be valid markdown (expected {})", format
+                                        ))));
+                                    }
+                                }
+                                _ => {} // text or unknown: just check content exists
+                            }
+                        }
+
                         Ok((true, size, None))
                     }
                     Err(_) => {
@@ -99,6 +126,7 @@ impl ExecuteWorkflowTool {
         &self,
         step: &WorkflowStep,
         workflow_id: &str,
+        spawn_tool: &super::agent_management::SpawnAgentTool,
     ) -> Result<(bool, String), String> {
         info!(
             "Executing workflow step {}: agent='{}' task='{}'",
@@ -115,8 +143,6 @@ impl ExecuteWorkflowTool {
             step.task.clone()
         };
 
-        // Create spawn_agent tool and execute
-        let spawn_tool = super::agent_management::SpawnAgentTool::new(&self.config);
         let spawn_input = json!({
             "agent_id": step.agent_id,
             "task": task_with_context,
@@ -134,7 +160,12 @@ impl ExecuteWorkflowTool {
         if step.verify_output {
             info!("Verifying output for step {}: {}", step.step_number, step.output_path);
 
-            match self.verify_file(&step.output_path).await {
+            // Load agent config to get output_format for validation
+            let expected_format = spawn_tool.load_agent_config(&step.agent_id).await
+                .ok()
+                .and_then(|c| if c.output_format.is_empty() { None } else { Some(c.output_format) });
+
+            match self.verify_file(&step.output_path, expected_format.as_deref()).await {
                 Ok((exists, size, error)) => {
                     if !exists {
                         let error_msg = error.unwrap_or_else(|| "Unknown verification error".to_string());
@@ -298,6 +329,9 @@ impl Tool for ExecuteWorkflowTool {
             return ToolResult::error(format!("Failed to create workflow folder: {}", e));
         }
 
+        // Create spawn tool once for reuse across steps (step 15)
+        let spawn_tool = super::agent_management::SpawnAgentTool::new(&self.config);
+
         // Execute steps sequentially
         let mut completed_steps = Vec::new();
         let mut failed_step = None;
@@ -305,7 +339,7 @@ impl Tool for ExecuteWorkflowTool {
         for step in &steps {
             info!("Workflow {}: Starting step {}/{}", workflow_id, step.step_number, steps.len());
 
-            match self.execute_step(step, &workflow_id).await {
+            match self.execute_step(step, &workflow_id, &spawn_tool).await {
                 Ok((success, message)) => {
                     if success {
                         completed_steps.push((step.step_number, step.output_path.clone(), message));
@@ -381,43 +415,8 @@ impl Tool for ExecuteWorkflowTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::tests::test_config;
     use serde_json::json;
-
-    fn test_config() -> Config {
-        Config {
-            telegram_bot_token: "tok".into(),
-            bot_username: "bot".into(),
-            llm_provider: "anthropic".into(),
-            api_key: "key".into(),
-            model: "claude-test".into(),
-            llm_base_url: None,
-            max_tokens: 4096,
-            max_tool_iterations: 100,
-            max_history_messages: 10,
-            data_dir: "/tmp".into(),
-            working_dir: "/tmp".into(),
-            openai_api_key: None,
-            timezone: "UTC".into(),
-            allowed_groups: vec![],
-            control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
-            whatsapp_access_token: None,
-            whatsapp_phone_number_id: None,
-            whatsapp_verify_token: None,
-            whatsapp_webhook_port: 8080,
-            discord_bot_token: None,
-            discord_allowed_channels: vec![],
-            show_thinking: false,
-            fallback_models: vec![],
-            tavily_api_key: None,
-            web_port: 3000,
-            soul_file: "soul/SOUL.md".into(),
-            identity_file: "soul/IDENTITY.md".into(),
-            agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
-        }
-    }
 
     #[test]
     fn test_execute_workflow_definition() {

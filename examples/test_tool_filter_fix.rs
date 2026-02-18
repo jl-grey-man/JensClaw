@@ -15,6 +15,7 @@ async fn main() {
         llm_base_url: None,
         max_tokens: 1000,
         max_tool_iterations: 10,
+        max_sub_agent_iterations: 25,
         max_history_messages: 10,
         max_session_messages: 10,
         compact_keep_recent: 5,

@@ -11,11 +11,13 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
 use crate::activity::{ActivityEntry, ActivityLogger};
+use crate::db::Database;
 
 #[derive(Clone)]
 pub struct WebState {
     pub data_dir: String,
     pub activity_logger: Arc<ActivityLogger>,
+    pub db: Option<Arc<Database>>,
 }
 
 #[derive(Serialize)]
@@ -77,12 +79,13 @@ struct ReminderView {
     status: String,
 }
 
-pub async fn start_web_server(data_dir: String, port: u16) {
+pub async fn start_web_server(data_dir: String, port: u16, db: Option<Arc<Database>>) {
     let activity_logger = Arc::new(ActivityLogger::new(&data_dir));
-    
+
     let state = WebState {
         data_dir: data_dir.clone(),
         activity_logger,
+        db,
     };
 
     let app = Router::new()
@@ -171,17 +174,24 @@ async fn dashboard_handler(State(state): State<WebState>) -> Json<DashboardData>
         }
     }).collect();
 
-    // Load reminders from tracking.json
-    let reminders: Vec<ReminderView> = tracking_data.reminders.iter().map(|r| {
-        ReminderView {
-            id: r.id.replace("rem_", "").parse().unwrap_or(0),
-            prompt: r.message.clone(),
-            schedule_type: if r.is_recurring { "cron".to_string() } else { "once".to_string() },
-            schedule_value: r.schedule.clone(),
-            next_run: r.schedule.clone(),
-            status: "active".to_string(),
-        }
-    }).collect();
+    // Load reminders from DB (authoritative source) instead of tracking.json
+    let reminders: Vec<ReminderView> = if let Some(ref db) = state.db {
+        // Get all active/paused tasks from all chats via due-tasks with far-future cutoff
+        db.get_due_tasks("2999-01-01T00:00:00Z")
+            .unwrap_or_default()
+            .into_iter()
+            .map(|t| ReminderView {
+                id: t.id,
+                prompt: t.prompt,
+                schedule_type: t.schedule_type,
+                schedule_value: t.schedule_value,
+                next_run: t.next_run,
+                status: t.status,
+            })
+            .collect()
+    } else {
+        vec![]
+    };
 
     Json(DashboardData {
         goals,
@@ -269,17 +279,6 @@ struct TrackingData {
     goals: Vec<TrackingGoal>,
     projects: Vec<TrackingProject>,
     tasks: Vec<TrackingTask>,
-    reminders: Vec<TrackingReminder>,
-}
-
-#[derive(serde::Deserialize)]
-struct TrackingReminder {
-    id: String,
-    message: String,
-    schedule: String,
-    linked_to: Option<String>,
-    is_recurring: bool,
-    created_at: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -331,19 +330,17 @@ fn load_tracking_data(data_dir: &str) -> TrackingData {
             goals: vec![],
             projects: vec![],
             tasks: vec![],
-            reminders: vec![],
         }),
         Err(_) => TrackingData {
             goals: vec![],
             projects: vec![],
             tasks: vec![],
-            reminders: vec![],
         },
     }
 }
 
 fn load_patterns_data(data_dir: &str) -> PatternsData {
-    let path = PathBuf::from(data_dir).join("patterns.json");
+    let path = PathBuf::from(data_dir).join("runtime/patterns.json");
     match std::fs::read_to_string(&path) {
         Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| PatternsData {
             patterns: vec![],

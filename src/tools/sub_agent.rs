@@ -7,7 +7,7 @@ use super::{auth_context_from_input, schema_object, Tool, ToolRegistry, ToolResu
 use crate::claude::{ContentBlock, Message, MessageContent, ResponseContentBlock, ToolDefinition};
 use crate::config::Config;
 
-const MAX_SUB_AGENT_ITERATIONS: usize = 10;
+const DEFAULT_MAX_SUB_AGENT_ITERATIONS: usize = 25;
 
 pub struct SubAgentTool {
     config: Config,
@@ -95,7 +95,13 @@ impl Tool for SubAgentTool {
             content: MessageContent::Text(user_content),
         }];
 
-        for iteration in 0..MAX_SUB_AGENT_ITERATIONS {
+        let max_iterations = if self.config.max_sub_agent_iterations > 0 {
+            self.config.max_sub_agent_iterations
+        } else {
+            DEFAULT_MAX_SUB_AGENT_ITERATIONS
+        };
+
+        for iteration in 0..max_iterations {
             let response = match llm
                 .send_message(&system_prompt, messages.clone(), Some(tool_defs.clone()))
                 .await
@@ -204,42 +210,7 @@ impl Tool for SubAgentTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_config() -> Config {
-        Config {
-            telegram_bot_token: "tok".into(),
-            bot_username: "bot".into(),
-            llm_provider: "anthropic".into(),
-            api_key: "key".into(),
-            model: "claude-test".into(),
-            llm_base_url: None,
-            max_tokens: 4096,
-            max_tool_iterations: 100,
-            max_history_messages: 10,
-            data_dir: "/tmp".into(),
-            working_dir: "/tmp".into(),
-            openai_api_key: None,
-            timezone: "UTC".into(),
-            allowed_groups: vec![],
-            control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
-            whatsapp_access_token: None,
-            whatsapp_phone_number_id: None,
-            whatsapp_verify_token: None,
-            whatsapp_webhook_port: 8080,
-            discord_bot_token: None,
-            discord_allowed_channels: vec![],
-            show_thinking: false,
-            fallback_models: vec![],
-            tavily_api_key: None,
-            web_port: 3000,
-            soul_file: "soul/SOUL.md".into(),
-            identity_file: "soul/IDENTITY.md".into(),
-            agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
-        }
-    }
+    use crate::config::tests::test_config;
 
     #[test]
     fn test_sub_agent_tool_name_and_definition() {
@@ -268,7 +239,7 @@ mod tests {
         let config = test_config();
         let registry = ToolRegistry::new_sub_agent(&config);
         let defs = registry.definitions();
-        assert_eq!(defs.len(), 13);
+        assert_eq!(defs.len(), 17);
     }
 
     #[test]

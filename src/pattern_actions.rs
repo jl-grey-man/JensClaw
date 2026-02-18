@@ -140,7 +140,7 @@ pub fn format_suggestions(suggestions: &[SuggestedAction]) -> String {
 
 /// Load patterns from disk and analyze them.
 pub fn analyze_from_data_dir(data_dir: &Path) -> Vec<SuggestedAction> {
-    let path = data_dir.join("patterns.json");
+    let path = data_dir.join("runtime/patterns.json");
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(_) => return Vec::new(),
@@ -177,10 +177,12 @@ mod tests {
                     date: "2026-01-01T00:00:00Z".into(),
                     observation: format!("Obs {}", i),
                     context: "test".into(),
+                    supports_pattern: true,
                 })
                 .collect(),
             created_at: "2026-01-01T00:00:00Z".into(),
             last_updated: "2026-02-01T00:00:00Z".into(),
+            confidence_locked: false,
         }
     }
 

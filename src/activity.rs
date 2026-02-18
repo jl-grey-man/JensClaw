@@ -46,10 +46,8 @@ impl ActivityLogger {
             entries.remove(0);
         }
 
-        // Write to file
-        if let Ok(json) = serde_json::to_string_pretty(&*entries) {
-            let _ = fs::write(&self.log_file, json);
-        }
+        // Write to file atomically
+        let _ = crate::atomic_io::atomic_write_json(&self.log_file, &*entries);
     }
 
     pub fn get_entries(&self, limit: usize) -> Vec<ActivityEntry> {

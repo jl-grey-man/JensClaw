@@ -15,6 +15,7 @@ fn test_config() -> Config {
         llm_base_url: None,
         max_tokens: 4096,
         max_tool_iterations: 100,
+        max_sub_agent_iterations: 25,
         max_history_messages: 10,
         data_dir: "/tmp".into(),
         working_dir: "/tmp".into(),

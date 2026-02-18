@@ -82,13 +82,12 @@ pub struct AppState {
 
 pub async fn run_bot(
     config: Config,
-    db: Database,
+    db: Arc<Database>,
     memory: MemoryManager,
     skills: SkillManager,
     mcp_manager: crate::mcp::McpManager,
 ) -> anyhow::Result<()> {
     let bot = Bot::new(&config.telegram_bot_token);
-    let db = Arc::new(db);
 
     let llm = crate::llm::create_provider(&config);
     let mut tools = ToolRegistry::new(&config, bot.clone(), db.clone());

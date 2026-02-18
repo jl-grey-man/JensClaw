@@ -13,6 +13,7 @@ fn minimal_config() -> Config {
         llm_base_url: None,
         max_tokens: 8192,
         max_tool_iterations: 25,
+        max_sub_agent_iterations: 25,
         max_history_messages: 10,
         data_dir: "./sandy.data".into(),
         working_dir: "./tmp".into(),

@@ -77,7 +77,15 @@ impl SpawnAgentTool {
     }
 
     /// Load agent configuration from storage/agents/{agent_id}.json
-    async fn load_agent_config(&self, agent_id: &str) -> Result<AgentConfig, String> {
+    pub async fn load_agent_config(&self, agent_id: &str) -> Result<AgentConfig, String> {
+        // Step 13: Validate agent_id against path traversal
+        if !agent_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+            return Err(format!(
+                "Invalid agent_id '{}': only alphanumeric, underscore, and hyphen characters are allowed.",
+                agent_id
+            ));
+        }
+
         let config_path = Path::new(&self.storage_dir)
             .join("agents")
             .join(format!("{}.json", agent_id));
@@ -499,7 +507,7 @@ impl Tool for SpawnAgentTool {
         };
 
         {
-            let mut registry = AGENT_REGISTRY.lock().unwrap();
+            let mut registry = AGENT_REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
             registry.insert(job_id.clone(), agent_info);
         }
 
@@ -514,11 +522,16 @@ impl Tool for SpawnAgentTool {
         info!("Executing sub_agent for job '{}' with {} filtered tools", job_id, filtered_registry.tool_count());
 
         let sub_agent_tool = crate::tools::sub_agent::SubAgentTool::with_registry(&self.config, filtered_registry);
-        let sub_agent_input = json!({
+        let mut sub_agent_input = json!({
             "task": task_prompt,
             "context": format!("You are agent '{}' with role: {}. Tools available: {:?}",
                 agent_id, agent_config.role, agent_config.tools)
         });
+
+        // Step 16: Propagate auth context to sub-agents
+        if let Some(auth) = super::auth_context_from_input(&input) {
+            sub_agent_input = super::inject_auth_context(sub_agent_input, &auth);
+        }
 
         let sub_agent_result = sub_agent_tool.execute(sub_agent_input).await;
 
@@ -539,7 +552,7 @@ impl Tool for SpawnAgentTool {
 
         // Step 8: Update registry with result
         {
-            let mut registry = AGENT_REGISTRY.lock().unwrap();
+            let mut registry = AGENT_REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(agent) = registry.get_mut(&job_id) {
                 if output_exists && output_size > 0 {
                     agent.status = AgentStatus::Completed;
@@ -622,7 +635,7 @@ impl Tool for ListAgentsTool {
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
         let show_completed = input.get("show_completed").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        let registry = AGENT_REGISTRY.lock().unwrap();
+        let registry = AGENT_REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
 
         if registry.is_empty() {
             return ToolResult::success("No agent jobs recorded.".into());
@@ -706,7 +719,7 @@ impl Tool for AgentStatusTool {
             None => return ToolResult::error("Missing required parameter: job_id".into()),
         };
 
-        let registry = AGENT_REGISTRY.lock().unwrap();
+        let registry = AGENT_REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
 
         match registry.get(job_id) {
             Some(agent) => {
@@ -749,7 +762,7 @@ impl Tool for AgentStatusTool {
 
 // Helper function to update agent status (called by workflow engine)
 pub fn update_agent_status(job_id: &str, status: AgentStatus, summary: Option<String>) {
-    let mut registry = AGENT_REGISTRY.lock().unwrap();
+    let mut registry = AGENT_REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(agent) = registry.get_mut(job_id) {
         agent.status = status;
         if let Some(s) = summary {
@@ -761,43 +774,7 @@ pub fn update_agent_status(job_id: &str, status: AgentStatus, summary: Option<St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
-
-    fn test_config() -> Config {
-        Config {
-            telegram_bot_token: "tok".into(),
-            bot_username: "bot".into(),
-            llm_provider: "anthropic".into(),
-            api_key: "key".into(),
-            model: "claude-test".into(),
-            llm_base_url: None,
-            max_tokens: 4096,
-            max_tool_iterations: 100,
-            max_history_messages: 10,
-            data_dir: "/tmp".into(),
-            working_dir: "/tmp".into(),
-            openai_api_key: None,
-            timezone: "UTC".into(),
-            allowed_groups: vec![],
-            control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
-            whatsapp_access_token: None,
-            whatsapp_phone_number_id: None,
-            whatsapp_verify_token: None,
-            whatsapp_webhook_port: 8080,
-            discord_bot_token: None,
-            discord_allowed_channels: vec![],
-            show_thinking: false,
-            fallback_models: vec![],
-            tavily_api_key: None,
-            web_port: 3000,
-            soul_file: "soul/SOUL.md".into(),
-            identity_file: "soul/IDENTITY.md".into(),
-            agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
-        }
-    }
+    use crate::config::tests::test_config;
 
     #[test]
     fn test_spawn_agent_definition() {

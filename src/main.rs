@@ -269,11 +269,15 @@ async fn main() -> anyhow::Result<()> {
     let mut runtime_config = config.clone();
     runtime_config.data_dir = runtime_data_dir.clone();
 
+    // Wrap db in Arc for sharing between web server and bot
+    let db = std::sync::Arc::new(db);
+
     // Start web server in background
     let data_dir_for_web = runtime_data_dir.clone();
     let web_port = config.web_port;
+    let db_for_web = db.clone();
     let web_handle = tokio::spawn(async move {
-        web::start_web_server(data_dir_for_web, web_port).await;
+        web::start_web_server(data_dir_for_web, web_port, Some(db_for_web)).await;
     });
 
     // Run Telegram bot (this blocks until bot stops)

@@ -2,14 +2,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{Datelike, TimeZone};
+use chrono::Datelike;
 use serde_json::json;
 
 use super::{authorize_chat_access, schema_object, Tool, ToolResult};
 use crate::activity::{ActivityEntry, ActivityLogger};
 use crate::claude::ToolDefinition;
 use crate::db::Database;
-use crate::tools::tracking::{read_tracking, write_tracking, Reminder};
 
 fn compute_next_run(cron_expr: &str, tz_name: &str) -> Result<String, String> {
     let tz: chrono_tz::Tz = tz_name
@@ -284,20 +283,6 @@ If this tool returns an error about not understanding the date/time, ask the use
             &next_run,
         ) {
             Ok(id) => {
-                // Also save to tracking.json for web UI display
-                let mut tracking_data = read_tracking(std::path::Path::new(&self.data_dir));
-                let reminder = Reminder {
-                    id: format!("rem_{}", id),
-                    message: prompt.to_string(),
-                    schedule: next_run.clone(),
-                    linked_to: None, // Could be enhanced to link to tasks/projects
-                    is_recurring: schedule_type == "cron",
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                };
-                tracking_data.reminders.push(reminder);
-                tracking_data.meta.last_updated = chrono::Utc::now().to_rfc3339();
-                let _ = write_tracking(std::path::Path::new(&self.data_dir), &tracking_data);
-                
                 // Log activity
                 let _ = ActivityLogger::new(&self.data_dir).log(ActivityEntry {
                     timestamp: chrono::Utc::now(),
