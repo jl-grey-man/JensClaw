@@ -61,7 +61,7 @@ fn patterns_path(data_dir: &Path) -> PathBuf {
     data_dir.join("runtime/patterns.json")
 }
 
-fn read_patterns(data_dir: &Path) -> PatternsData {
+pub fn read_patterns(data_dir: &Path) -> PatternsData {
     let path = patterns_path(data_dir);
     match std::fs::read_to_string(&path) {
         Ok(content) => match serde_json::from_str(&content) {

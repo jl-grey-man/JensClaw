@@ -11,6 +11,69 @@ use crate::llm::LlmProvider;
 use crate::memory::MemoryManager;
 use crate::skills::SkillManager;
 use crate::tools::{ToolAuthContext, ToolRegistry};
+use crate::tools::patterns::read_patterns;
+use crate::tools::tracking::read_tracking;
+
+/// Build a memory summary showing patterns, tracking, and recent memory activity.
+fn build_memory_summary(data_dir: &str) -> String {
+    let data_path = std::path::Path::new(data_dir);
+    let mut lines = Vec::new();
+
+    // Patterns summary
+    let patterns = read_patterns(data_path);
+    if !patterns.patterns.is_empty() {
+        let high = patterns.patterns.iter().filter(|p| p.confidence >= 70).count();
+        let medium = patterns.patterns.iter().filter(|p| p.confidence >= 40 && p.confidence < 70).count();
+        let low = patterns.patterns.iter().filter(|p| p.confidence < 40).count();
+        let total_obs: i32 = patterns.patterns.iter().map(|p| p.observations_count).sum();
+        lines.push(format!(
+            "Patterns: {} ({} strong, {} growing, {} new) / {} observations",
+            patterns.patterns.len(), high, medium, low, total_obs
+        ));
+        // Show most recently updated pattern
+        if let Some(latest) = patterns.patterns.iter()
+            .max_by_key(|p| &p.last_updated)
+        {
+            lines.push(format!("  Latest: {} ({}%)", latest.name, latest.confidence));
+        }
+    } else {
+        lines.push("Patterns: none".into());
+    }
+
+    // Tracking summary — tracking.json lives in the runtime subdirectory
+    let runtime_path = data_path.join("runtime");
+    let tracking = read_tracking(&runtime_path);
+    let active_goals = tracking.goals.iter().filter(|g| g.status == "active").count();
+    let active_projects = tracking.projects.iter().filter(|p| p.status == "active").count();
+    let todo_tasks = tracking.tasks.iter().filter(|t| t.status == "todo").count();
+    let in_progress = tracking.tasks.iter().filter(|t| t.status == "in_progress").count();
+    if active_goals > 0 || active_projects > 0 || todo_tasks > 0 || in_progress > 0 {
+        lines.push(format!(
+            "Tracking: {} goals, {} projects, {} tasks ({} active)",
+            active_goals, active_projects, todo_tasks + in_progress, in_progress
+        ));
+    }
+
+    // Memory files summary (insights, solutions, patterns notes, errors, rules)
+    let memory_dir = runtime_path.join("memory");
+    let memory_files = ["insights", "solutions", "patterns", "errors", "rules"];
+    let mut memory_counts = Vec::new();
+    for name in &memory_files {
+        let path = memory_dir.join(format!("{}.md", name));
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            let entry_count = content.matches("\n## ").count()
+                + if content.starts_with("## ") { 1 } else { 0 };
+            if entry_count > 0 {
+                memory_counts.push(format!("{} {}", entry_count, name));
+            }
+        }
+    }
+    if !memory_counts.is_empty() {
+        lines.push(format!("Memory: {}", memory_counts.join(", ")));
+    }
+
+    lines.join("\n")
+}
 
 /// Format a number with commas (e.g., 12450 -> "12,450").
 fn format_number(n: u32) -> String {
@@ -472,13 +535,15 @@ async fn handle_message(
                     } else {
                         String::new()
                     };
+                    let memory_summary = build_memory_summary(&state.config.data_dir);
                     let status_msg = format!(
-                        "STATUS\nTokens: {} in{} / {} out\nTools: {}\nSession: {}",
+                        "STATUS\nTokens: {} in{} / {} out\nTools: {}\nSession: {}\n{}",
                         format_number(meta.total_input_tokens),
                         cache_str,
                         format_number(meta.total_output_tokens),
                         tools_str,
                         session_str,
+                        memory_summary,
                     );
                     let _ = bot.send_message(msg.chat.id, status_msg).await;
                 }
