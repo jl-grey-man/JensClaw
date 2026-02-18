@@ -112,8 +112,7 @@ soul/
       patterns.json    # Behavioral patterns (decay-weighted)
       activity_log.json
       exec_log.jsonl
-      MEMORY.md        # Runtime memory summary
-      memory/          # Category files: insights.md, solutions.md, patterns.md, errors.md, rules.md
+      memory/          # Category files (authoritative runtime memory): insights.md, solutions.md, patterns.md, errors.md, rules.md
       groups/          # Per-group conversation logs
 storage/
   agents/              # Agent config JSON files

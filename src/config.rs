@@ -70,9 +70,6 @@ fn default_identity_file() -> String {
 fn default_agents_file() -> String {
     "./soul/AGENTS.md".into()
 }
-fn default_memory_file() -> String {
-    "./soul/data/MEMORY.md".into()
-}
 fn default_fallback_models() -> Vec<String> {
     vec![
         "anthropic/claude-sonnet-3.5".into(),
@@ -147,8 +144,6 @@ pub struct Config {
     pub identity_file: String,
     #[serde(default = "default_agents_file")]
     pub agents_file: String,
-    #[serde(default = "default_memory_file")]
-    pub memory_file: String,
 }
 
 impl Config {
@@ -302,7 +297,6 @@ pub(crate) mod tests {
             soul_file: "soul/SOUL.md".into(),
             identity_file: "soul/IDENTITY.md".into(),
             agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
         }
     }
 

@@ -1216,7 +1216,6 @@ mod tests {
             soul_file: "soul/SOUL.md".into(),
             identity_file: "soul/IDENTITY.md".into(),
             agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
         };
         // Should not panic
         let _provider = create_provider(&config);
@@ -1256,7 +1255,6 @@ mod tests {
             soul_file: "soul/SOUL.md".into(),
             identity_file: "soul/IDENTITY.md".into(),
             agents_file: "soul/AGENTS.md".into(),
-            memory_file: "soul/data/MEMORY.md".into(),
         };
         let _provider = create_provider(&config);
     }

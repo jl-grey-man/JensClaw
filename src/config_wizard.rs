@@ -400,7 +400,6 @@ fn default_config() -> Config {
         soul_file: "./soul/SOUL.md".into(),
         identity_file: "./soul/IDENTITY.md".into(),
         agents_file: "./soul/AGENTS.md".into(),
-        memory_file: "./soul/data/MEMORY.md".into(),
         web_port: 3000,
         tavily_api_key: None,
     }

@@ -24,7 +24,6 @@ fn main() {
         soul_file: "test".to_string(),
         identity_file: "test".to_string(),
         agents_file: "test".to_string(),
-        memory_file: "test".to_string(),
         control_chat_ids: vec![],
         web_port: 3000,
         tavily_api_key: None,
