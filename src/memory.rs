@@ -85,6 +85,17 @@ impl MemoryManager {
         }
     }
 
+    /// Read mandatory rules from `{data_dir}/memory/rules.md`.
+    /// These are authoritative directives (formatting, interaction style, etc.)
+    /// that should be injected prominently in the system prompt.
+    pub fn read_rules(&self) -> Option<String> {
+        let path = self.base_dir.join("memory").join("rules.md");
+        match std::fs::read_to_string(&path) {
+            Ok(content) if !content.trim().is_empty() => Some(content),
+            _ => None,
+        }
+    }
+
     pub fn build_memory_context(&self, chat_id: i64) -> String {
         let mut context = String::new();
 
@@ -228,6 +239,34 @@ mod tests {
     fn test_groups_dir() {
         let (mm, dir) = test_memory_manager();
         assert!(mm.groups_dir().ends_with("groups"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_read_rules_no_file() {
+        let (mm, dir) = test_memory_manager();
+        assert!(mm.read_rules().is_none());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_read_rules_with_content() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("rules.md"), "No asterisks in headers").unwrap();
+        let rules = mm.read_rules().unwrap();
+        assert_eq!(rules, "No asterisks in headers");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_read_rules_empty_file() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("rules.md"), "  \n  ").unwrap();
+        assert!(mm.read_rules().is_none());
         cleanup(&dir);
     }
 }

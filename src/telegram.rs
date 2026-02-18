@@ -12,6 +12,26 @@ use crate::memory::MemoryManager;
 use crate::skills::SkillManager;
 use crate::tools::{ToolAuthContext, ToolRegistry};
 
+/// Format a number with commas (e.g., 12450 -> "12,450").
+fn format_number(n: u32) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    for (i, c) in s.chars().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+    }
+    result.chars().rev().collect()
+}
+
+/// Compute adaptive max chars for tool results based on estimated context usage.
+/// Uses 4-chars/token heuristic. Allows 15% of context window, capped at 20K chars.
+fn max_tool_result_chars(context_tokens: usize) -> usize {
+    let chars = context_tokens * 4 * 15 / 100;
+    chars.min(20_000).max(2_000) // floor of 2K to avoid tiny results
+}
+
 /// Escape XML special characters in user-supplied content to prevent prompt injection.
 /// User messages are wrapped in XML tags; escaping ensures the content cannot break out.
 fn sanitize_xml(s: &str) -> String {
@@ -28,6 +48,26 @@ fn format_user_message(sender_name: &str, content: &str) -> String {
         sanitize_xml(sender_name),
         sanitize_xml(content)
     )
+}
+
+/// Controls how much of the system prompt to include.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PromptMode {
+    /// Full personality: SOUL.md, IDENTITY.md, AGENTS.md, skills, memories, rules
+    Full,
+    /// Minimal: AGENTS.md (guardrails), rules, memories, dynamic context. No personality/skills.
+    Minimal,
+}
+
+/// Metadata about a single processing run — token usage, tools called, etc.
+pub struct ProcessingMeta {
+    pub total_input_tokens: u32,
+    pub total_output_tokens: u32,
+    pub cache_read_tokens: u32,
+    pub cache_creation_tokens: u32,
+    pub tool_calls: Vec<String>,
+    pub iterations: usize,
+    pub session_saved: bool,
 }
 
 pub struct AppState {
@@ -141,6 +181,13 @@ pub async fn run_bot(
     Ok(())
 }
 
+/// Check if text is a bot command, handling the @botname suffix Telegram adds in groups.
+/// e.g. is_command("/status", "/status@sandybot") == true
+fn is_command(text: &str, command: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed == command || trimmed.starts_with(&format!("{command}@"))
+}
+
 async fn handle_message(
     bot: Bot,
     msg: teloxide::types::Message,
@@ -151,22 +198,35 @@ async fn handle_message(
     let mut image_data: Option<(String, String)> = None; // (base64, media_type)
 
     // Handle /reset command — clear session
-    if text.trim() == "/reset" {
+    if is_command(&text, "/reset") {
         let chat_id = msg.chat.id.0;
         let _ = state.db.delete_session(chat_id);
         let _ = bot.send_message(msg.chat.id, "Session cleared.").await;
         return Ok(());
     }
 
+    // Handle /status command — toggle status display after responses
+    if is_command(&text, "/status") {
+        let chat_id = msg.chat.id.0;
+        let current = state.db.get_chat_setting(chat_id, "show_status")
+            .unwrap_or(None)
+            .unwrap_or_else(|| "0".to_string());
+        let new_val = if current == "1" { "0" } else { "1" };
+        let _ = state.db.set_chat_setting(chat_id, "show_status", new_val);
+        let status_text = if new_val == "1" { "Status mode: ON" } else { "Status mode: OFF" };
+        let _ = bot.send_message(msg.chat.id, status_text).await;
+        return Ok(());
+    }
+
     // Handle /skills command — list available skills
-    if text.trim() == "/skills" {
+    if is_command(&text, "/skills") {
         let formatted = state.skills.list_skills_formatted();
         let _ = bot.send_message(msg.chat.id, formatted).await;
         return Ok(());
     }
 
     // Handle /archive command — archive current session to markdown
-    if text.trim() == "/archive" {
+    if is_command(&text, "/archive") {
         let chat_id = msg.chat.id.0;
         if let Ok(Some((json, _))) = state.db.load_session(chat_id) {
             let messages: Vec<Message> = serde_json::from_str(&json).unwrap_or_default();
@@ -192,7 +252,7 @@ async fn handle_message(
     }
 
     // Handle HELP command — show comprehensive help
-    if text.trim().eq_ignore_ascii_case("HELP") || text.trim() == "/help" {
+    if text.trim().eq_ignore_ascii_case("HELP") || is_command(&text, "/help") {
         let help_text = get_help_text(state.config.web_port);
         let _ = bot.send_message(msg.chat.id, help_text).await;
         return Ok(());
@@ -373,7 +433,7 @@ async fn handle_message(
 
     // Process with Claude
     match process_with_claude(&state, chat_id, &sender_name, chat_type, None, image_data).await {
-        Ok(response) => {
+        Ok((response, meta)) => {
             typing_handle.abort();
 
             if !response.is_empty() {
@@ -390,7 +450,40 @@ async fn handle_message(
                 };
                 let _ = state.db.store_message(&bot_msg);
             }
-            // If response is empty, agent likely used send_message tool directly
+
+            // Send status footer if enabled
+            if let Ok(Some(val)) = state.db.get_chat_setting(chat_id, "show_status") {
+                if val == "1" {
+                    let unique_tools: Vec<String> = {
+                        let mut seen = std::collections::HashSet::new();
+                        meta.tool_calls.iter().filter(|t| seen.insert((*t).clone())).cloned().collect()
+                    };
+                    let tools_str = if unique_tools.is_empty() {
+                        "none".to_string()
+                    } else {
+                        format!("{} ({} calls, {} iterations)", unique_tools.join(", "), meta.tool_calls.len(), meta.iterations)
+                    };
+                    let session_str = if meta.session_saved {
+                        format!("saved (chat {})", chat_id)
+                    } else {
+                        "not saved".to_string()
+                    };
+                    let cache_str = if meta.cache_read_tokens > 0 || meta.cache_creation_tokens > 0 {
+                        format!(" ({} cached)", format_number(meta.cache_read_tokens))
+                    } else {
+                        String::new()
+                    };
+                    let status_msg = format!(
+                        "STATUS\nTokens: {} in{} / {} out\nTools: {}\nSession: {}",
+                        format_number(meta.total_input_tokens),
+                        cache_str,
+                        format_number(meta.total_output_tokens),
+                        tools_str,
+                        session_str,
+                    );
+                    let _ = bot.send_message(msg.chat.id, status_msg).await;
+                }
+            }
         }
         Err(e) => {
             typing_handle.abort();
@@ -440,16 +533,47 @@ pub async fn process_with_claude(
     chat_type: &str,
     override_prompt: Option<&str>,
     image_data: Option<(String, String)>,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<(String, ProcessingMeta)> {
+    process_with_claude_mode(state, chat_id, _sender_name, chat_type, override_prompt, image_data, PromptMode::Full).await
+}
+
+pub async fn process_with_claude_mode(
+    state: &AppState,
+    chat_id: i64,
+    _sender_name: &str,
+    chat_type: &str,
+    override_prompt: Option<&str>,
+    image_data: Option<(String, String)>,
+    prompt_mode: PromptMode,
+) -> anyhow::Result<(String, ProcessingMeta)> {
+    let mut meta = ProcessingMeta {
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        tool_calls: Vec::new(),
+        iterations: 0,
+        session_saved: false,
+    };
+
     // Build system prompt
     let memory_context = state.memory.build_memory_context(chat_id);
-    let skills_catalog = state.skills.build_skills_catalog();
-    
-    // Load OpenClaw files (SOUL.md, AGENTS.md, IDENTITY.md)
-    let soul_content = load_file_content(&state.config.soul_file);
+    let rules_content = state.memory.read_rules();
+
+    let (soul_content, identity_content, skills_catalog);
+    if prompt_mode == PromptMode::Full {
+        soul_content = load_file_content(&state.config.soul_file);
+        identity_content = load_file_content(&state.config.identity_file);
+        skills_catalog = state.skills.build_skills_catalog();
+    } else {
+        soul_content = None;
+        identity_content = None;
+        skills_catalog = String::new();
+    }
+
+    // AGENTS.md is always loaded (guardrails)
     let agents_content = load_file_content(&state.config.agents_file);
-    let identity_content = load_file_content(&state.config.identity_file);
-    
+
     let system_prompt = build_system_prompt(
         &state.config.bot_username,
         &memory_context,
@@ -458,6 +582,7 @@ pub async fn process_with_claude(
         soul_content.as_deref(),
         agents_content.as_deref(),
         identity_content.as_deref(),
+        rules_content.as_deref(),
     );
 
     // Try to resume from session
@@ -528,7 +653,7 @@ pub async fn process_with_claude(
 
     // Ensure we have at least one message
     if messages.is_empty() {
-        return Ok("I didn't receive any message to process.".into());
+        return Ok(("I didn't receive any message to process.".into(), meta));
     }
 
     // Compact if messages exceed threshold (count-based)
@@ -572,12 +697,22 @@ pub async fn process_with_claude(
 
     // Agentic tool-use loop
     for iteration in 0..state.config.max_tool_iterations {
+        meta.iterations = iteration + 1;
+
         // Truncate old tool results to reduce token count sent to the LLM
         let send_messages = truncate_old_tool_results(&messages, 3);
         let response = state
             .llm
             .send_message(&system_prompt, send_messages, Some(tool_defs.clone()))
             .await?;
+
+        // Accumulate token usage
+        if let Some(ref usage) = response.usage {
+            meta.total_input_tokens += usage.input_tokens;
+            meta.total_output_tokens += usage.output_tokens;
+            meta.cache_read_tokens += usage.cache_read_input_tokens;
+            meta.cache_creation_tokens += usage.cache_creation_input_tokens;
+        }
 
         let stop_reason = response.stop_reason.as_deref().unwrap_or("end_turn");
 
@@ -600,6 +735,7 @@ pub async fn process_with_claude(
             strip_images_for_session(&mut messages);
             if let Ok(json) = serde_json::to_string(&messages) {
                 let _ = state.db.save_session(chat_id, &json);
+                meta.session_saved = true;
             }
 
             // Strip <think> blocks unless show_thinking is enabled
@@ -608,7 +744,7 @@ pub async fn process_with_claude(
             } else {
                 strip_thinking(&text)
             };
-            return Ok(display_text);
+            return Ok((display_text, meta));
         }
 
         if stop_reason == "tool_use" {
@@ -635,16 +771,18 @@ pub async fn process_with_claude(
             let mut tool_results = Vec::new();
             for block in &response.content {
                 if let ResponseContentBlock::ToolUse { id, name, input } = block {
+                    meta.tool_calls.push(name.clone());
                     info!("Executing tool: {} (iteration {})", name, iteration + 1);
                     let result = state
                         .tools
                         .execute_with_auth(name, input.clone(), &tool_auth)
                         .await;
-                    // Cap tool result size to avoid ballooning token usage
+                    // Cap tool result size adaptively based on context usage
+                    let max_chars = max_tool_result_chars(meta.total_input_tokens as usize);
                     let mut content = result.content;
-                    if content.len() > 4000 {
+                    if content.len() > max_chars {
                         let original_len = content.len();
-                        content.truncate(4000);
+                        content.truncate(max_chars);
                         // Ensure we don't split a multi-byte character
                         while !content.is_char_boundary(content.len()) {
                             content.pop();
@@ -686,13 +824,14 @@ pub async fn process_with_claude(
         strip_images_for_session(&mut messages);
         if let Ok(json) = serde_json::to_string(&messages) {
             let _ = state.db.save_session(chat_id, &json);
+            meta.session_saved = true;
         }
 
-        return Ok(if text.is_empty() {
+        return Ok((if text.is_empty() {
             "(no response)".into()
         } else {
             text
-        });
+        }, meta));
     }
 
     // Max iterations reached — cap session with an assistant message so the
@@ -706,9 +845,10 @@ pub async fn process_with_claude(
     strip_images_for_session(&mut messages);
     if let Ok(json) = serde_json::to_string(&messages) {
         let _ = state.db.save_session(chat_id, &json);
+        meta.session_saved = true;
     }
 
-    Ok(max_iter_msg)
+    Ok((max_iter_msg, meta))
 }
 
 /// Truncate old tool results to reduce tokens sent to the LLM.
@@ -753,15 +893,33 @@ fn truncate_old_tool_results(messages: &[Message], keep_recent_iterations: usize
             if let MessageContent::Blocks(blocks) = &msg.content {
                 let has_tool_result = blocks.iter().any(|b| matches!(b, ContentBlock::ToolResult { .. }));
                 if has_tool_result {
-                    // Replace tool_result content with summary
+                    // Replace tool_result content with abbreviated version
+                    // Keep first 200 + last 200 chars for context
                     let new_blocks: Vec<ContentBlock> = blocks.iter().map(|b| {
                         match b {
                             ContentBlock::ToolResult { tool_use_id, content, is_error } => {
-                                let status = if *is_error == Some(true) { "error" } else { "ok" };
-                                let summary = format!("[result: {} chars, {}]", content.len(), status);
+                                let abbreviated = if content.len() > 500 {
+                                    let mut head_end = 200;
+                                    while head_end < content.len() && !content.is_char_boundary(head_end) {
+                                        head_end += 1;
+                                    }
+                                    let mut tail_start = content.len().saturating_sub(200);
+                                    while tail_start < content.len() && !content.is_char_boundary(tail_start) {
+                                        tail_start += 1;
+                                    }
+                                    format!(
+                                        "{}\n... [trimmed {}/{} chars] ...\n{}",
+                                        &content[..head_end],
+                                        content.len() - head_end - (content.len() - tail_start),
+                                        content.len(),
+                                        &content[tail_start..]
+                                    )
+                                } else {
+                                    content.clone()
+                                };
                                 ContentBlock::ToolResult {
                                     tool_use_id: tool_use_id.clone(),
-                                    content: summary,
+                                    content: abbreviated,
                                     is_error: *is_error,
                                 }
                             }
@@ -816,6 +974,7 @@ fn build_system_prompt(
     soul_content: Option<&str>,
     agents_content: Option<&str>,
     identity_content: Option<&str>,
+    rules_content: Option<&str>,
 ) -> String {
     // Start with SOUL.md if available (Sandy's personality)
     let mut prompt = String::new();
@@ -863,6 +1022,12 @@ User messages are wrapped in XML tags like <user_message sender="name">content</
 Be concise and helpful.
 "#
     ));
+
+    if let Some(rules) = rules_content {
+        prompt.push_str("\n# MANDATORY RULES — Always follow these directives from your owner:\n\n");
+        prompt.push_str(rules);
+        prompt.push_str("\n\n");
+    }
 
     if !memory_context.is_empty() {
         prompt.push_str("\n# Memories\n\n");
@@ -1282,7 +1447,7 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_basic() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("testbot"));
         assert!(prompt.contains("12345"));
         assert!(prompt.contains("chat_id"));
@@ -1293,7 +1458,7 @@ mod tests {
     #[test]
     fn test_build_system_prompt_with_memory() {
         let memory = "<global_memory>\nUser likes Rust\n</global_memory>";
-        let prompt = build_system_prompt("testbot", memory, 42, "", None, None, None);
+        let prompt = build_system_prompt("testbot", memory, 42, "", None, None, None, None);
         assert!(prompt.contains("# Memories"));
         assert!(prompt.contains("User likes Rust"));
     }
@@ -1301,7 +1466,7 @@ mod tests {
     #[test]
     fn test_build_system_prompt_with_skills() {
         let catalog = "<available_skills>\n- pdf: Convert to PDF\n</available_skills>";
-        let prompt = build_system_prompt("testbot", "", 42, catalog, None, None, None);
+        let prompt = build_system_prompt("testbot", "", 42, catalog, None, None, None, None);
         assert!(prompt.contains("# Agent Skills"));
         assert!(prompt.contains("activate_skill"));
         assert!(prompt.contains("pdf: Convert to PDF"));
@@ -1309,7 +1474,7 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_without_skills() {
-        let prompt = build_system_prompt("testbot", "", 42, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 42, "", None, None, None, None);
         assert!(!prompt.contains("# Agent Skills"));
     }
 
@@ -1535,7 +1700,7 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_mentions_scheduling() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("6-field cron"));
     }
 
@@ -1570,7 +1735,7 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_mentions_xml_security() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("user_message"));
         assert!(prompt.contains("untrusted"));
     }
@@ -1764,7 +1929,7 @@ mod tests {
     fn test_build_system_prompt_with_memory_and_skills() {
         let memory = "<global_memory>\nTest\n</global_memory>";
         let skills = "- translate: Translate text";
-        let prompt = build_system_prompt("bot", memory, 42, skills, None, None, None);
+        let prompt = build_system_prompt("bot", memory, 42, skills, None, None, None, None);
         assert!(prompt.contains("# Memories"));
         assert!(prompt.contains("Test"));
         assert!(prompt.contains("# Agent Skills"));
@@ -1773,20 +1938,73 @@ mod tests {
 
     #[test]
     fn test_build_system_prompt_mentions_todo() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("todo_write"));
     }
 
     #[test]
     fn test_build_system_prompt_mentions_export() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("export_chat"));
     }
 
     #[test]
     fn test_build_system_prompt_mentions_schedule() {
-        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None);
+        let prompt = build_system_prompt("testbot", "", 12345, "", None, None, None, None);
         assert!(prompt.contains("cron"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_with_rules() {
+        let prompt = build_system_prompt("testbot", "", 42, "", None, None, None, Some("No asterisks. Use ALL CAPS headers."));
+        assert!(prompt.contains("MANDATORY RULES"));
+        assert!(prompt.contains("No asterisks. Use ALL CAPS headers."));
+    }
+
+    #[test]
+    fn test_build_system_prompt_without_rules() {
+        let prompt = build_system_prompt("testbot", "", 42, "", None, None, None, None);
+        assert!(!prompt.contains("MANDATORY RULES"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_rules_before_memories() {
+        let memory = "<global_memory>\nUser likes Rust\n</global_memory>";
+        let prompt = build_system_prompt("testbot", memory, 42, "", None, None, None, Some("Format rule"));
+        let rules_pos = prompt.find("MANDATORY RULES").unwrap();
+        let memories_pos = prompt.find("# Memories").unwrap();
+        assert!(rules_pos < memories_pos, "Rules should appear before memories");
+    }
+
+    #[test]
+    fn test_is_command_exact() {
+        assert!(is_command("/status", "/status"));
+        assert!(is_command("/reset", "/reset"));
+        assert!(is_command("  /status  ", "/status"));
+    }
+
+    #[test]
+    fn test_is_command_with_bot_suffix() {
+        assert!(is_command("/status@sandybot", "/status"));
+        assert!(is_command("/reset@SandyBot", "/reset"));
+        assert!(is_command("  /status@bot  ", "/status"));
+    }
+
+    #[test]
+    fn test_is_command_no_match() {
+        assert!(!is_command("/statusreport", "/status"));
+        assert!(!is_command("status", "/status"));
+        assert!(!is_command("/reset", "/status"));
+        assert!(!is_command("hello /status", "/status"));
+    }
+
+    #[test]
+    fn test_format_number() {
+        assert_eq!(format_number(0), "0");
+        assert_eq!(format_number(999), "999");
+        assert_eq!(format_number(1000), "1,000");
+        assert_eq!(format_number(12450), "12,450");
+        assert_eq!(format_number(1234567), "1,234,567");
     }
 
     #[test]
@@ -1805,7 +2023,8 @@ mod tests {
 
     fn make_tool_iteration(iteration: usize) -> Vec<Message> {
         let tool_id = format!("tool_{iteration}");
-        let result_content = format!("Result from iteration {iteration} with lots of data here");
+        // Content must be >500 chars to trigger abbreviation in truncate_old_tool_results
+        let result_content = format!("Result from iteration {iteration}: {}", "x".repeat(600));
         vec![
             Message {
                 role: "assistant".into(),
@@ -1859,11 +2078,11 @@ mod tests {
                 for block in blocks {
                     if let ContentBlock::ToolResult { content, tool_use_id, .. } = block {
                         if idx <= 4 {
-                            // Old iterations — should be truncated
-                            assert!(content.starts_with("[result:"), "idx={idx} should be truncated, got: {content}");
+                            // Old iterations — should be abbreviated (first/last 200 chars with trimmed marker)
+                            assert!(content.contains("[trimmed"), "idx={idx} should be abbreviated, got: {}", &content[..content.len().min(100)]);
                         } else {
                             // Recent iterations — should be intact
-                            assert!(content.starts_with("Result from"), "idx={idx} should be intact, got: {content}");
+                            assert!(content.starts_with("Result from"), "idx={idx} should be intact, got: {}", &content[..content.len().min(100)]);
                         }
                         // tool_use_id should always be preserved
                         assert!(tool_use_id.starts_with("tool_"));
@@ -1923,13 +2142,26 @@ mod tests {
         ];
 
         let result = truncate_old_tool_results(&messages, 3);
-        // The first tool result (error) should be truncated but preserve is_error
+        // The first tool result (error) should preserve is_error (content too short to abbreviate)
         if let MessageContent::Blocks(blocks) = &result[2].content {
             if let ContentBlock::ToolResult { is_error, content, .. } = &blocks[0] {
                 assert_eq!(*is_error, Some(true));
-                assert!(content.contains("error"));
+                // Short content (<500 chars) is kept as-is
+                assert!(content.contains("command failed"));
             }
         }
+    }
+
+    #[test]
+    fn test_max_tool_result_chars() {
+        // 200k context → 200000 * 4 * 15/100 = 120000, capped at 20000
+        assert_eq!(max_tool_result_chars(200_000), 20_000);
+        // 10k context → 10000 * 4 * 15/100 = 6000
+        assert_eq!(max_tool_result_chars(10_000), 6_000);
+        // Very small context → floor of 2000
+        assert_eq!(max_tool_result_chars(100), 2_000);
+        // Zero context → floor of 2000
+        assert_eq!(max_tool_result_chars(0), 2_000);
     }
 }
 
@@ -1940,6 +2172,7 @@ fn get_help_text(web_port: u16) -> String {
 **Quick Commands:**
 • HELP - Show this help message
 • /reset - Clear current conversation session
+• /status - Toggle token/tool usage info after responses
 • /skills - List available skills
 • /archive - Save conversation to file
 • /review - Trigger daily self-review (if enabled)

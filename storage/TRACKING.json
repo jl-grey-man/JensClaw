@@ -1,0 +1,24 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Buy green",
+      "status": "pending",
+      "created": "2026-02-16T14:56:00Z"
+    },
+    {
+      "id": 2,
+      "title": "Renovate house",
+      "status": "pending",
+      "created": "2026-02-16T14:56:00Z"
+    },
+    {
+      "id": 3,
+      "title": "Call mom",
+      "status": "pending",
+      "created": "2026-02-16T14:56:00Z"
+    }
+  ],
+  "goals": [],
+  "projects": []
+}

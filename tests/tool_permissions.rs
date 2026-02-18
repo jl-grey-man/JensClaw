@@ -2,7 +2,7 @@
 //!
 //! Tests the ToolAuthContext and authorization logic across various scenarios.
 
-use microclaw::tools::{auth_context_from_input, authorize_chat_access, ToolAuthContext};
+use sandy::tools::{auth_context_from_input, authorize_chat_access, ToolAuthContext};
 use serde_json::json;
 
 // -----------------------------------------------------------------------

@@ -201,7 +201,7 @@ async fn process_webhook(state: &WhatsAppState, payload: WebhookPayload) -> anyh
                 )
                 .await
                 {
-                    Ok(response) => {
+                    Ok((response, _meta)) => {
                         if !response.is_empty() {
                             send_whatsapp_message(
                                 &state.http_client,

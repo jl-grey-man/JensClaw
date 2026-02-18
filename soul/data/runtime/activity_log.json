@@ -1,58 +1,74 @@
 [
   {
-    "timestamp": "2026-02-11T08:40:16.169522Z",
-    "action": "updated",
-    "item_type": "task",
-    "item_id": "task_617c0c7b",
-    "item_name": "Walk the dog",
-    "details": "Status changed to: todo"
-  },
-  {
-    "timestamp": "2026-02-11T08:40:20.141652Z",
-    "action": "updated",
-    "item_type": "task",
-    "item_id": "task_9fdc1d0f",
-    "item_name": "Buy milk",
-    "details": "Status changed to: todo"
-  },
-  {
-    "timestamp": "2026-02-11T09:28:25.929887Z",
+    "timestamp": "2026-02-16T14:49:39.639769568Z",
     "action": "created",
-    "item_type": "task",
-    "item_id": "task_4900d090",
-    "item_name": "Paint house green",
-    "details": "Linked to project: proj_927aae64"
+    "item_type": "reminder",
+    "item_id": "1",
+    "item_name": "Time to stretch! 🧘",
+    "details": "Scheduled for: 2026-02-16T14:52:39.631287466+00:00"
   },
   {
-    "timestamp": "2026-02-11T13:20:28.243890Z",
+    "timestamp": "2026-02-16T15:11:07.625835242Z",
+    "action": "created",
+    "item_type": "project",
+    "item_id": "proj_b4264291",
+    "item_name": "Build house",
+    "details": null
+  },
+  {
+    "timestamp": "2026-02-16T15:11:07.626853278Z",
+    "action": "created",
+    "item_type": "project",
+    "item_id": "proj_5537c21c",
+    "item_name": "Reevaluate purchases",
+    "details": null
+  },
+  {
+    "timestamp": "2026-02-17T08:37:45.674267202Z",
+    "action": "created",
+    "item_type": "reminder",
+    "item_id": "2",
+    "item_name": "Time to make coffee and breakfast!",
+    "details": "Scheduled for: 2026-02-17T08:45:00+00:00"
+  },
+  {
+    "timestamp": "2026-02-17T12:25:03.219996787Z",
+    "action": "updated",
+    "item_type": "project",
+    "item_id": "proj_b4264291",
+    "item_name": "Build house",
+    "details": "Status changed to: completed"
+  },
+  {
+    "timestamp": "2026-02-17T12:25:03.221225055Z",
+    "action": "updated",
+    "item_type": "project",
+    "item_id": "proj_5537c21c",
+    "item_name": "Reevaluate purchases",
+    "details": "Status changed to: completed"
+  },
+  {
+    "timestamp": "2026-02-17T17:35:16.016620039Z",
     "action": "created",
     "item_type": "reminder",
     "item_id": "5",
-    "item_name": "Time to stretch! Move that body - even a quick 30-...",
-    "details": "Scheduled for: 2024-03-20T10:58:00+00:00"
+    "item_name": "Time to drink water! 💧",
+    "details": "Scheduled for: 2026-02-18T08:00:00+00:00"
   },
   {
-    "timestamp": "2026-02-11T13:35:30.243211Z",
+    "timestamp": "2026-02-17T21:05:13.891952755Z",
     "action": "created",
     "item_type": "reminder",
     "item_id": "6",
-    "item_name": "Water break! 💧 Time to hydrate.",
-    "details": "Scheduled for: 2024-03-20T11:01:00+00:00"
+    "item_name": "Morning check-in: What's the ONE concrete thing yo...",
+    "details": "Scheduled for: 2026-02-18T08:30:00+00:00"
   },
   {
-    "timestamp": "2026-02-11T13:35:38.595594Z",
+    "timestamp": "2026-02-18T07:50:13.976571807Z",
     "action": "created",
     "item_type": "reminder",
     "item_id": "7",
-    "item_name": "Time to turn around! 🔄 Quick position change.",
-    "details": "Scheduled for: 2024-03-20T11:03:00+00:00"
-  },
-  {
-    "timestamp": "2026-02-11T14:38:52.364512Z",
-    "action": "created",
-    "item_type": "reminder",
-    "item_id": "8",
-    "item_name": "Time to test! ⚡",
-    "details": "Scheduled for: 2026-02-11T14:40:52.352663+00:00"
+    "item_name": "Ask Björn about the iPods",
+    "details": "Scheduled for: 2026-02-21T08:00:00+00:00"
   }
 ]

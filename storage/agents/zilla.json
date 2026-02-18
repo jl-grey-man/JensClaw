@@ -18,7 +18,7 @@
     "SHOULD use advanced search depth for thorough research",
     "SHOULD verify information from multiple sources when possible"
   ],
-  "output_format": "structured_json",
+  "output_format": "markdown",
   "created_at": "2026-02-12T00:00:00Z",
   "version": "1.0"
 }

@@ -107,6 +107,13 @@ impl Database {
                 chat_id INTEGER PRIMARY KEY,
                 messages_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_settings (
+                chat_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (chat_id, key)
             );",
         )?;
 
@@ -513,6 +520,33 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let rows = conn.execute("DELETE FROM sessions WHERE chat_id = ?1", params![chat_id])?;
         Ok(rows > 0)
+    }
+
+    // --- Chat settings ---
+
+    pub fn get_chat_setting(&self, chat_id: i64, key: &str) -> Result<Option<String>, MicroClawError> {
+        let conn = self.conn.lock().unwrap();
+        let result = conn.query_row(
+            "SELECT value FROM chat_settings WHERE chat_id = ?1 AND key = ?2",
+            params![chat_id, key],
+            |row| row.get::<_, String>(0),
+        );
+        match result {
+            Ok(val) => Ok(Some(val)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn set_chat_setting(&self, chat_id: i64, key: &str, value: &str) -> Result<(), MicroClawError> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO chat_settings (chat_id, key, value)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(chat_id, key) DO UPDATE SET value = ?3",
+            params![chat_id, key, value],
+        )?;
+        Ok(())
     }
 
     pub fn get_new_user_messages_since(
@@ -1083,6 +1117,30 @@ mod tests {
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0].content, "new msg 1");
         assert_eq!(msgs[1].content, "new msg 2");
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_chat_settings_set_and_get() {
+        let (db, dir) = test_db();
+        assert!(db.get_chat_setting(100, "show_status").unwrap().is_none());
+
+        db.set_chat_setting(100, "show_status", "1").unwrap();
+        assert_eq!(db.get_chat_setting(100, "show_status").unwrap().as_deref(), Some("1"));
+
+        // Update existing
+        db.set_chat_setting(100, "show_status", "0").unwrap();
+        assert_eq!(db.get_chat_setting(100, "show_status").unwrap().as_deref(), Some("0"));
+
+        // Different chat
+        assert!(db.get_chat_setting(200, "show_status").unwrap().is_none());
+
+        // Different key
+        db.set_chat_setting(100, "other_key", "val").unwrap();
+        assert_eq!(db.get_chat_setting(100, "other_key").unwrap().as_deref(), Some("val"));
+        // Original key unchanged
+        assert_eq!(db.get_chat_setting(100, "show_status").unwrap().as_deref(), Some("0"));
 
         cleanup(&dir);
     }

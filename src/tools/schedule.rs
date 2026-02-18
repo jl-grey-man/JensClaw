@@ -9,7 +9,7 @@ use super::{authorize_chat_access, schema_object, Tool, ToolResult};
 use crate::activity::{ActivityEntry, ActivityLogger};
 use crate::claude::ToolDefinition;
 use crate::db::Database;
-use crate::tools::tracking::{read_tracking, write_tracking, Reminder, TrackingData};
+use crate::tools::tracking::{read_tracking, write_tracking, Reminder};
 
 fn compute_next_run(cron_expr: &str, tz_name: &str) -> Result<String, String> {
     let tz: chrono_tz::Tz = tz_name
@@ -674,7 +674,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_cron() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 100,
@@ -692,7 +692,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_once() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 100,
@@ -709,7 +709,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_invalid_once_timestamp() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 100,
@@ -726,7 +726,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_invalid_type() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 100,
@@ -743,7 +743,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_missing_params() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool.execute(json!({})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Missing"));
@@ -833,7 +833,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_with_timezone() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 100,
@@ -903,7 +903,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_permission_denied_cross_chat() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db, "UTC".into());
+        let tool = ScheduleTaskTool::new(db, "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 200,
@@ -945,7 +945,7 @@ mod tests {
     #[tokio::test]
     async fn test_schedule_task_allowed_for_control_chat_cross_chat() {
         let (db, dir) = test_db();
-        let tool = ScheduleTaskTool::new(db.clone(), "UTC".into());
+        let tool = ScheduleTaskTool::new(db.clone(), "UTC".into(), "/tmp".into());
         let result = tool
             .execute(json!({
                 "chat_id": 200,

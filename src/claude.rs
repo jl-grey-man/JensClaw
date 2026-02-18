@@ -54,10 +54,12 @@ pub enum MessageContent {
 pub struct MessagesRequest {
     pub model: String,
     pub max_tokens: u32,
-    pub system: String,
+    pub system: serde_json::Value,
     pub messages: Vec<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ToolDefinition>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,11 +83,86 @@ pub enum ResponseContentBlock {
     },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 pub struct Usage {
     pub input_tokens: u32,
     pub output_tokens: u32,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u32,
+    #[serde(default)]
+    pub cache_read_input_tokens: u32,
+}
+
+// --- SSE streaming event types ---
+
+/// Top-level SSE event wrapper
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[allow(dead_code)]
+pub enum StreamEvent {
+    #[serde(rename = "message_start")]
+    MessageStart { message: StreamMessage },
+    #[serde(rename = "content_block_start")]
+    ContentBlockStart { index: usize, content_block: ContentBlockStartData },
+    #[serde(rename = "content_block_delta")]
+    ContentBlockDelta { index: usize, delta: ContentDelta },
+    #[serde(rename = "content_block_stop")]
+    ContentBlockStop { index: usize },
+    #[serde(rename = "message_delta")]
+    MessageDelta { delta: MessageDeltaData, usage: Option<MessageDeltaUsage> },
+    #[serde(rename = "message_stop")]
+    MessageStop {},
+    #[serde(rename = "ping")]
+    Ping {},
+    #[serde(rename = "error")]
+    Error { error: StreamError },
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct StreamMessage {
+    pub usage: Option<Usage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[allow(dead_code)]
+pub enum ContentBlockStartData {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "tool_use")]
+    ToolUse { id: String, name: String, input: serde_json::Value },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+#[allow(dead_code)]
+pub enum ContentDelta {
+    #[serde(rename = "text_delta")]
+    TextDelta { text: String },
+    #[serde(rename = "input_json_delta")]
+    InputJsonDelta { partial_json: String },
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct MessageDeltaData {
+    pub stop_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct MessageDeltaUsage {
+    pub output_tokens: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct StreamError {
+    pub message: String,
+    #[serde(rename = "type")]
+    pub error_type: String,
 }
 
 #[cfg(test)]
@@ -213,17 +290,19 @@ mod tests {
         let req = MessagesRequest {
             model: "claude-sonnet-4-5-20250929".into(),
             max_tokens: 4096,
-            system: "You are helpful.".into(),
+            system: json!("You are helpful."),
             messages: vec![Message {
                 role: "user".into(),
                 content: MessageContent::Text("hi".into()),
             }],
             tools: None,
+            stream: None,
         };
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["model"], "claude-sonnet-4-5-20250929");
         assert_eq!(json["max_tokens"], 4096);
         assert!(json.get("tools").is_none()); // skip_serializing_if None
+        assert!(json.get("stream").is_none()); // skip_serializing_if None
     }
 
     #[test]
@@ -231,13 +310,14 @@ mod tests {
         let req = MessagesRequest {
             model: "test".into(),
             max_tokens: 100,
-            system: "sys".into(),
+            system: json!("sys"),
             messages: vec![],
             tools: Some(vec![ToolDefinition {
                 name: "bash".into(),
                 description: "Run bash".into(),
                 input_schema: json!({"type": "object"}),
             }]),
+            stream: None,
         };
         let json = serde_json::to_value(&req).unwrap();
         assert!(json["tools"].is_array());
@@ -270,5 +350,109 @@ mod tests {
         let json = serde_json::to_value(&source).unwrap();
         assert_eq!(json["type"], "base64");
         assert_eq!(json["media_type"], "image/png");
+    }
+
+    #[test]
+    fn test_usage_with_cache_fields() {
+        let json = json!({
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "cache_creation_input_tokens": 80,
+            "cache_read_input_tokens": 20
+        });
+        let usage: Usage = serde_json::from_value(json).unwrap();
+        assert_eq!(usage.input_tokens, 100);
+        assert_eq!(usage.output_tokens, 50);
+        assert_eq!(usage.cache_creation_input_tokens, 80);
+        assert_eq!(usage.cache_read_input_tokens, 20);
+    }
+
+    #[test]
+    fn test_usage_without_cache_fields_defaults_to_zero() {
+        let json = json!({
+            "input_tokens": 100,
+            "output_tokens": 50
+        });
+        let usage: Usage = serde_json::from_value(json).unwrap();
+        assert_eq!(usage.cache_creation_input_tokens, 0);
+        assert_eq!(usage.cache_read_input_tokens, 0);
+    }
+
+    #[test]
+    fn test_stream_event_message_start_deserialization() {
+        let json = json!({
+            "type": "message_start",
+            "message": {
+                "usage": {
+                    "input_tokens": 500,
+                    "output_tokens": 0
+                }
+            }
+        });
+        let event: StreamEvent = serde_json::from_value(json).unwrap();
+        match event {
+            StreamEvent::MessageStart { message } => {
+                assert_eq!(message.usage.unwrap().input_tokens, 500);
+            }
+            _ => panic!("Expected MessageStart"),
+        }
+    }
+
+    #[test]
+    fn test_stream_event_content_block_delta_text() {
+        let json = json!({
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "text_delta",
+                "text": "Hello"
+            }
+        });
+        let event: StreamEvent = serde_json::from_value(json).unwrap();
+        match event {
+            StreamEvent::ContentBlockDelta { index, delta } => {
+                assert_eq!(index, 0);
+                match delta {
+                    ContentDelta::TextDelta { text } => assert_eq!(text, "Hello"),
+                    _ => panic!("Expected TextDelta"),
+                }
+            }
+            _ => panic!("Expected ContentBlockDelta"),
+        }
+    }
+
+    #[test]
+    fn test_stream_event_message_delta() {
+        let json = json!({
+            "type": "message_delta",
+            "delta": {
+                "stop_reason": "end_turn"
+            },
+            "usage": {
+                "output_tokens": 42
+            }
+        });
+        let event: StreamEvent = serde_json::from_value(json).unwrap();
+        match event {
+            StreamEvent::MessageDelta { delta, usage } => {
+                assert_eq!(delta.stop_reason.as_deref(), Some("end_turn"));
+                assert_eq!(usage.unwrap().output_tokens, 42);
+            }
+            _ => panic!("Expected MessageDelta"),
+        }
+    }
+
+    #[test]
+    fn test_messages_request_with_stream() {
+        let req = MessagesRequest {
+            model: "test".into(),
+            max_tokens: 100,
+            system: json!("sys"),
+            messages: vec![],
+            tools: None,
+            stream: Some(true),
+        };
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["stream"], true);
     }
 }

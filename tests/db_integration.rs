@@ -3,7 +3,7 @@
 //! Tests full lifecycle operations across multiple tables,
 //! verifying cross-table consistency and complex query patterns.
 
-use microclaw::db::{Database, StoredMessage};
+use sandy::db::{Database, StoredMessage};
 
 fn test_db() -> (Database, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!("microclaw_integ_{}", uuid::Uuid::new_v4()));

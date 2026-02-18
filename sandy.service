@@ -1,0 +1,23 @@
+[Unit]
+Description=Sandy ADHD Coach Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jens
+WorkingDirectory=/home/jens/sandy
+ExecStart=/home/jens/sandy/target/release/sandy start
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/jens/sandy/logs/sandy.log
+StandardError=append:/home/jens/sandy/logs/sandy.log
+
+# Resource limits
+LimitNOFILE=4096
+
+# Environment
+Environment="RUST_LOG=info"
+
+[Install]
+WantedBy=multi-user.target

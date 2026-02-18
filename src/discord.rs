@@ -138,7 +138,7 @@ impl EventHandler for Handler {
         )
         .await
         {
-            Ok(response) => {
+            Ok((response, _meta)) => {
                 drop(typing);
                 if !response.is_empty() {
                     send_discord_response(&ctx, msg.channel_id, &response).await;

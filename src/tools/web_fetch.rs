@@ -1,8 +1,13 @@
 use async_trait::async_trait;
+use regex::Regex;
 use serde_json::json;
+use std::sync::LazyLock;
 
 use super::{schema_object, Tool, ToolResult};
 use crate::claude::ToolDefinition;
+
+static TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").unwrap());
+static WS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
 pub struct WebFetchTool;
 
@@ -62,13 +67,11 @@ async fn fetch_url(url: &str) -> Result<String, String> {
 
     let body = resp.text().await.map_err(|e| e.to_string())?;
 
-    // Strip HTML tags with regex
-    let tag_re = regex::Regex::new(r"<[^>]+>").unwrap();
-    let text = tag_re.replace_all(&body, "");
+    // Strip HTML tags with regex (static, compiled once)
+    let text = TAG_RE.replace_all(&body, "");
 
-    // Collapse whitespace
-    let ws_re = regex::Regex::new(r"\s+").unwrap();
-    let text = ws_re.replace_all(&text, " ");
+    // Collapse whitespace (static, compiled once)
+    let text = WS_RE.replace_all(&text, " ");
 
     let text = text.trim().to_string();
 

@@ -47,17 +47,18 @@ async fn run_due_tasks(state: &Arc<AppState>) {
         let started_at_str = started_at.to_rfc3339();
 
         // Run agent loop with the task prompt
-        let (success, result_summary) = match crate::telegram::process_with_claude(
+        let (success, result_summary) = match crate::telegram::process_with_claude_mode(
             state,
             task.chat_id,
             "scheduler",
             "private",
             Some(&task.prompt),
             None,
+            crate::telegram::PromptMode::Minimal,
         )
         .await
         {
-            Ok(response) => {
+            Ok((response, _meta)) => {
                 if !response.is_empty() {
                     crate::telegram::send_response(&state.bot, ChatId(task.chat_id), &response)
                         .await;

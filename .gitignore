@@ -17,3 +17,10 @@ sandy.config.yaml
 logs/
 .cache/
 runtime/
+
+# Runtime data
+soul/data/runtime/
+*.swp
+*.swo
+.DS_Store
+scripts/test-api.sh

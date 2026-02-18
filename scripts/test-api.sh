@@ -26,13 +26,12 @@ echo ""
 echo "Sending test request to OpenRouter..."
 echo ""
 
-RESPONSE=$(curl -s -X POST https://api.openrouter.ai/v1/chat/completions \
+RESPONSE=$(curl -X POST "https://openrouter.ai/api/v1/chat/completions" \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-3.5-sonnet",
-    "messages": [{"role": "user", "content": "Say 'API test successful' if you receive this."}],
-    "max_tokens": 50
+    "model": "google/gemini-pro-1.5",
+    "messages": [{"role": "user", "content": "Säg hej!"}]
   }' 2>&1)
 
 # Check if response contains error

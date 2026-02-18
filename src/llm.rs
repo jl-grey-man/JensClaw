@@ -6,8 +6,8 @@ use tracing::{error, info, warn};
 use std::collections::HashSet;
 
 use crate::claude::{
-    ContentBlock, ImageSource, Message, MessageContent, MessagesRequest, MessagesResponse,
-    ResponseContentBlock, ToolDefinition, Usage,
+    ContentBlock, ContentBlockStartData, ContentDelta, ImageSource, Message, MessageContent,
+    MessagesRequest, MessagesResponse, ResponseContentBlock, StreamEvent, ToolDefinition, Usage,
 };
 use crate::config::Config;
 use crate::error::MicroClawError;
@@ -121,6 +121,30 @@ impl AnthropicProvider {
     }
 }
 
+/// Build the Anthropic system parameter as a content array with cache_control.
+/// Splits on CACHE_BREAK marker: static part gets cache_control, dynamic part does not.
+fn build_anthropic_system(system: &str) -> serde_json::Value {
+    const CACHE_MARKER: &str = "\n---CACHE_BREAK---\n";
+
+    if let Some(pos) = system.find(CACHE_MARKER) {
+        let static_part = &system[..pos];
+        let dynamic_part = &system[pos + CACHE_MARKER.len()..];
+
+        let mut content = vec![json!({
+            "type": "text",
+            "text": static_part,
+            "cache_control": {"type": "ephemeral"}
+        })];
+        if !dynamic_part.is_empty() {
+            content.push(json!({"type": "text", "text": dynamic_part}));
+        }
+        json!(content)
+    } else {
+        // No marker — use content array without cache_control
+        json!([{"type": "text", "text": system}])
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct AnthropicApiError {
     error: AnthropicApiErrorDetail,
@@ -143,36 +167,53 @@ impl LlmProvider for AnthropicProvider {
     ) -> Result<MessagesResponse, MicroClawError> {
         let messages = sanitize_messages(messages);
 
+        // Build system as content array with cache_control for prompt caching
+        let system_value = build_anthropic_system(system);
+
         let request = MessagesRequest {
             model: self.model.clone(),
             max_tokens: self.max_tokens,
-            system: system.to_string(),
+            system: system_value,
             messages,
             tools,
+            stream: Some(true),
         };
 
         let mut retries = 0u32;
         let max_retries = 3;
 
         loop {
-            let response = self
+            let mut req_builder = self
                 .http
                 .post(&self.base_url)
                 .header("x-api-key", &self.api_key)
                 .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
-                .json(&request)
+                .header("content-type", "application/json");
+
+            // Add prompt caching beta header
+            req_builder = req_builder.header("anthropic-beta", "prompt-caching-2024-07-31");
+
+            // Serialize request manually so we can inject cache_control on last tool
+            let mut body = serde_json::to_value(&request).map_err(|e| {
+                MicroClawError::LlmApi(format!("Failed to serialize request: {e}"))
+            })?;
+
+            // Add cache_control to the last tool definition
+            if let Some(tools_arr) = body.get_mut("tools").and_then(|t| t.as_array_mut()) {
+                if let Some(last_tool) = tools_arr.last_mut() {
+                    last_tool["cache_control"] = json!({"type": "ephemeral"});
+                }
+            }
+
+            let response = req_builder
+                .json(&body)
                 .send()
                 .await?;
 
             let status = response.status();
 
             if status.is_success() {
-                let body = response.text().await?;
-                let parsed: MessagesResponse = serde_json::from_str(&body).map_err(|e| {
-                    MicroClawError::LlmApi(format!("Failed to parse response: {e}\nBody: {body}"))
-                })?;
-                return Ok(parsed);
+                return parse_sse_stream(response).await;
             }
 
             if status.as_u16() == 429 && retries < max_retries {
@@ -196,6 +237,133 @@ impl LlmProvider for AnthropicProvider {
             return Err(MicroClawError::LlmApi(format!("HTTP {status}: {body}")));
         }
     }
+}
+
+/// Parse an SSE stream from the Anthropic API and accumulate into a MessagesResponse.
+async fn parse_sse_stream(response: reqwest::Response) -> Result<MessagesResponse, MicroClawError> {
+    use tokio::io::AsyncBufReadExt;
+    use tokio_util::io::StreamReader;
+    use futures_util::TryStreamExt;
+
+    // Content blocks being built: (index, block)
+    let mut content_blocks: Vec<ResponseContentBlock> = Vec::new();
+    // For tool_use blocks, accumulate partial JSON strings
+    let mut tool_json_parts: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
+    let mut stop_reason: Option<String> = None;
+    let mut usage: Option<Usage> = None;
+    let mut output_tokens: u32 = 0;
+
+    // Convert the response body stream into an async reader
+    let byte_stream = response.bytes_stream().map_err(|e| {
+        std::io::Error::new(std::io::ErrorKind::Other, e)
+    });
+    let reader = tokio::io::BufReader::new(StreamReader::new(byte_stream));
+    let mut lines = reader.lines();
+
+    while let Some(line) = lines.next_line().await.map_err(|e| {
+        MicroClawError::LlmApi(format!("SSE read error: {e}"))
+    })? {
+        // SSE format: "event: <type>\ndata: <json>\n\n"
+        // We only care about "data:" lines
+        let line = line.trim_end();
+        if !line.starts_with("data: ") {
+            continue;
+        }
+        let data = &line[6..];
+        if data == "[DONE]" {
+            break;
+        }
+
+        let event: StreamEvent = match serde_json::from_str(data) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to parse SSE event: {e} | data: {}", &data[..data.len().min(200)]);
+                continue;
+            }
+        };
+
+        match event {
+            StreamEvent::MessageStart { message } => {
+                usage = message.usage;
+            }
+            StreamEvent::ContentBlockStart { index, content_block } => {
+                // Extend content_blocks to fit this index
+                while content_blocks.len() <= index {
+                    content_blocks.push(ResponseContentBlock::Text { text: String::new() });
+                }
+                match content_block {
+                    ContentBlockStartData::Text { text } => {
+                        content_blocks[index] = ResponseContentBlock::Text { text };
+                    }
+                    ContentBlockStartData::ToolUse { id, name, .. } => {
+                        content_blocks[index] = ResponseContentBlock::ToolUse {
+                            id,
+                            name,
+                            input: serde_json::Value::Null,
+                        };
+                        tool_json_parts.insert(index, String::new());
+                    }
+                }
+            }
+            StreamEvent::ContentBlockDelta { index, delta } => {
+                if index < content_blocks.len() {
+                    match delta {
+                        ContentDelta::TextDelta { text } => {
+                            if let ResponseContentBlock::Text { text: ref mut t } = content_blocks[index] {
+                                t.push_str(&text);
+                            }
+                        }
+                        ContentDelta::InputJsonDelta { partial_json } => {
+                            if let Some(parts) = tool_json_parts.get_mut(&index) {
+                                parts.push_str(&partial_json);
+                            }
+                        }
+                    }
+                }
+            }
+            StreamEvent::ContentBlockStop { index } => {
+                // Finalize tool_use input JSON
+                if let Some(json_str) = tool_json_parts.remove(&index) {
+                    if index < content_blocks.len() {
+                        if let ResponseContentBlock::ToolUse { ref mut input, .. } = content_blocks[index] {
+                            *input = serde_json::from_str(&json_str).unwrap_or_default();
+                        }
+                    }
+                }
+            }
+            StreamEvent::MessageDelta { delta, usage: delta_usage } => {
+                if let Some(reason) = delta.stop_reason {
+                    stop_reason = Some(reason);
+                }
+                if let Some(du) = delta_usage {
+                    output_tokens = du.output_tokens;
+                }
+            }
+            StreamEvent::Error { error } => {
+                return Err(MicroClawError::LlmApi(format!(
+                    "{}: {}",
+                    error.error_type, error.message
+                )));
+            }
+            StreamEvent::MessageStop {} | StreamEvent::Ping {} => {}
+        }
+    }
+
+    // Merge output_tokens into usage
+    let final_usage = usage.map(|mut u| {
+        u.output_tokens = output_tokens;
+        u
+    });
+
+    if content_blocks.is_empty() {
+        content_blocks.push(ResponseContentBlock::Text { text: String::new() });
+    }
+
+    Ok(MessagesResponse {
+        content: content_blocks,
+        stop_reason,
+        usage: final_usage,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -651,6 +819,8 @@ fn translate_oai_response(oai: OaiResponse) -> MessagesResponse {
         Usage {
             input_tokens: u.prompt_tokens,
             output_tokens: u.completion_tokens,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: cached,
         }
     });
 
@@ -665,6 +835,45 @@ fn translate_oai_response(oai: OaiResponse) -> MessagesResponse {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    // -----------------------------------------------------------------------
+    // build_anthropic_system
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_build_anthropic_system_with_cache_break() {
+        let system = "Static personality content\n---CACHE_BREAK---\nDynamic context here";
+        let result = build_anthropic_system(system);
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["type"], "text");
+        assert_eq!(arr[0]["text"], "Static personality content");
+        assert_eq!(arr[0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(arr[1]["type"], "text");
+        assert_eq!(arr[1]["text"], "Dynamic context here");
+        assert!(arr[1].get("cache_control").is_none());
+    }
+
+    #[test]
+    fn test_build_anthropic_system_without_cache_break() {
+        let system = "Simple system prompt";
+        let result = build_anthropic_system(system);
+        let arr = result.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["text"], "Simple system prompt");
+        assert!(arr[0].get("cache_control").is_none());
+    }
+
+    #[test]
+    fn test_build_anthropic_system_empty_dynamic_part() {
+        let system = "Static only\n---CACHE_BREAK---\n";
+        let result = build_anthropic_system(system);
+        let arr = result.as_array().unwrap();
+        // Empty dynamic part should be omitted
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["text"], "Static only");
+        assert_eq!(arr[0]["cache_control"]["type"], "ephemeral");
+    }
 
     // -----------------------------------------------------------------------
     // translate_messages_to_oai
