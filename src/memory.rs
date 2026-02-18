@@ -124,6 +124,27 @@ impl MemoryManager {
             context.push_str("\n</recent_insights>\n\n");
         }
 
+        // Inject last 3 solutions
+        if let Some(solutions) = self.read_runtime_memory_entries("solutions", 3) {
+            context.push_str("<recent_solutions>\n");
+            context.push_str(&solutions);
+            context.push_str("\n</recent_solutions>\n\n");
+        }
+
+        // Inject last 3 patterns
+        if let Some(patterns) = self.read_runtime_memory_entries("patterns", 3) {
+            context.push_str("<recent_patterns>\n");
+            context.push_str(&patterns);
+            context.push_str("\n</recent_patterns>\n\n");
+        }
+
+        // Inject last 3 errors
+        if let Some(errors) = self.read_runtime_memory_entries("errors", 3) {
+            context.push_str("<recent_errors>\n");
+            context.push_str(&errors);
+            context.push_str("\n</recent_errors>\n\n");
+        }
+
         context
     }
 

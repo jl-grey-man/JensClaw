@@ -9,13 +9,30 @@ use super::{file_ops, schema_object, Tool, ToolResult};
 
 pub struct ReadFileTool {
     working_dir: PathBuf,
+    extra_allowed_roots: Vec<PathBuf>,
 }
 
 impl ReadFileTool {
     pub fn new(working_dir: &str) -> Self {
         Self {
             working_dir: PathBuf::from(working_dir),
+            extra_allowed_roots: Vec::new(),
         }
+    }
+
+    pub fn with_data_dir(mut self, data_dir: &str) -> Self {
+        let data_path = PathBuf::from(data_dir);
+        // Add the data_dir itself and its runtime subdirectory as allowed roots
+        if let Ok(canonical) = std::fs::canonicalize(&data_path) {
+            self.extra_allowed_roots.push(canonical);
+        } else {
+            self.extra_allowed_roots.push(data_path.clone());
+        }
+        let runtime_path = data_path.join("runtime");
+        if let Ok(canonical) = std::fs::canonicalize(&runtime_path) {
+            self.extra_allowed_roots.push(canonical);
+        }
+        self
     }
 }
 
@@ -63,7 +80,7 @@ impl Tool for ReadFileTool {
         }
         
         // Additional validation with file_ops (Hard Rails security)
-        if let Err(e) = file_ops::validate_path(&resolved_path) {
+        if let Err(e) = file_ops::validate_path_with_extras(&resolved_path, &self.extra_allowed_roots) {
             return ToolResult::error(format!("Path validation failed: {}", e));
         }
 

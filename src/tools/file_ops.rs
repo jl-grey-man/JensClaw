@@ -64,6 +64,11 @@ impl From<std::io::Error> for FileOpsError {
 /// validate_path("/storage/../../../etc/passwd").unwrap_err(); // Blocked
 /// ```
 pub fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), FileOpsError> {
+    validate_path_with_extras(path, &[])
+}
+
+/// Validate path against allowed roots plus additional runtime-configured roots
+pub fn validate_path_with_extras<P: AsRef<Path>>(path: P, extra_roots: &[PathBuf]) -> Result<(), FileOpsError> {
     let path = path.as_ref();
 
     // Get absolute path
@@ -93,6 +98,11 @@ pub fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), FileOpsError> {
     let allowed = ALLOWED_ROOTS.iter().any(|root| {
         let root_path = Path::new(root);
         canonical.starts_with(root_path)
+    });
+
+    // Check against extra runtime-configured roots
+    let allowed = allowed || extra_roots.iter().any(|root| {
+        canonical.starts_with(root)
     });
 
     if !allowed {
