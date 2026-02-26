@@ -160,7 +160,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_file_not_found() {
         let tool = ReadFileTool::new(".");
-        let result = tool.execute(json!({"path": "/nonexistent/file.txt"})).await;
+        let result = tool.execute(json!({"path": "/tmp/sandy_nonexistent_test_file.txt"})).await;
         assert!(result.is_error);
         assert!(result.content.contains("Failed to read file"));
     }

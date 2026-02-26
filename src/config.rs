@@ -352,8 +352,8 @@ pub(crate) mod tests {
         assert_eq!(config.llm_provider, "anthropic");
         assert_eq!(config.max_tokens, 8192);
         assert_eq!(config.max_tool_iterations, 100);
-        assert_eq!(config.data_dir, "./sandy.data");
-        assert_eq!(config.working_dir, "./tmp");
+        assert_eq!(config.data_dir, default_data_dir());
+        assert_eq!(config.working_dir, default_working_dir());
         assert_eq!(config.timezone, "UTC");
     }
 
@@ -362,7 +362,7 @@ pub(crate) mod tests {
         let yaml = "telegram_bot_token: tok\nbot_username: bot\napi_key: key\nworking_dir: '  '\n";
         let mut config: Config = serde_yaml::from_str(yaml).unwrap();
         config.post_deserialize().unwrap();
-        assert_eq!(config.working_dir, "./tmp");
+        assert_eq!(config.working_dir, default_working_dir());
     }
 
     #[test]

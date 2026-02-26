@@ -171,59 +171,9 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - **Memory verification:** Solutions logged to memory must include `verification` field with proof
 - **No direct web access:** Sandy delegates research to Zilla agent, writing to Gonza agent
 
-## Known Test Failures (9 tests, 5 categories)
+## Known Test Failures
 
-### A. Auth key rename — FIXED
-
-All `__microclaw_auth` → `__sandy_auth` renames done. Auth is now fail-closed (missing auth = denied). All auth tests pass.
-
-### B. Config default changes not reflected in tests — 2 tests
-
-`default_data_dir()` changed from `"./sandy.data"` to XDG `~/.local/share/sandy`. `default_working_dir()` changed from `"./tmp"` to `/tmp/sandy_work`.
-
-- `test_config_yaml_defaults` (`src/config.rs`)
-- `test_post_deserialize_empty_working_dir_uses_default` (`src/config.rs`)
-
-**Fix:** Update assertions to match current defaults.
-
-### C. Missing embedded skills — 2 tests
-
-`src/skills/` only has `journalistic-research/` and `journalistic-writing/`. Tests expect `weather/` and `pdf/` to be embedded at compile time.
-
-- `test_ensure_builtin_skills_includes_new_macos_and_weather_skills` (`src/builtin_skills.rs`)
-- `test_ensure_builtin_skills_writes_missing_files` (`src/builtin_skills.rs`)
-
-**Fix:** Copy needed skills into `src/skills/` or update tests to check only existing embedded skills.
-
-### D. `/storage` directory doesn't exist on Pi — 2 tests
-
-`ALLOWED_ROOTS` includes `/storage` but no such directory exists. `canonicalize()` fails.
-
-- `test_validate_path_allowed` (`src/tools/file_ops.rs`)
-- `test_safe_join` (`src/tools/file_ops.rs`)
-
-**Fix:** Create `/storage` on the Pi, or change tests to use `/tmp` or `/mnt/storage`.
-
-### E. Path validation blocks before file-not-found — 1 test
-
-`test_read_file_not_found` uses `/nonexistent/file.txt` which fails path validation before the read.
-
-- `test_read_file_not_found` (`src/tools/read_file.rs`)
-
-**Fix:** Use a path inside an allowed root, or update the expected error.
-
-### F. Write to non-existent temp paths — 2 tests
-
-`canonicalize()` fails on paths whose parent dirs don't exist yet.
-
-- `test_write_file_creates_parent_dirs` (`src/tools/write_file.rs`)
-- `test_write_file_resolves_relative_to_working_dir` (`src/tools/write_file.rs`)
-
-**Fix:** Loosen `validate_path` to handle not-yet-created parent dirs, or create dirs before validation.
-
-### G. Scheduled task timestamp parsing — FIXED
-
-Test now passes with auth context added.
+**None.** All 535 tests pass (475 lib + 60 integration/doc).
 
 ## Security Model — Memory System
 

@@ -57,7 +57,9 @@ async fn test_memory_log_success() {
 
     let params = serde_json::json!({
         "category": "solutions",
-        "content": "Test solution: this is a test entry"
+        "content": "Test solution: this is a test entry with enough detail to pass the length check",
+        "verification": "Verified by reading the output file and confirming it was written",
+        "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}
     });
 
     let result = tool.execute(params).await;
@@ -84,7 +86,8 @@ async fn test_memory_log_invalid_category() {
 
     let params = serde_json::json!({
         "category": "invalid_category",
-        "content": "Test content"
+        "content": "Test content",
+        "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}
     });
 
     let result = tool.execute(params).await;
@@ -100,7 +103,8 @@ async fn test_memory_log_missing_parameters() {
 
     // Missing content
     let params = serde_json::json!({
-        "category": "solutions"
+        "category": "solutions",
+        "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}
     });
 
     let result = tool.execute(params).await;

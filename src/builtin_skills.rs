@@ -53,8 +53,9 @@ mod tests {
     fn test_ensure_builtin_skills_writes_missing_files() {
         let root = temp_root();
         ensure_builtin_skills(&root).unwrap();
-        let sample = root.join("skills").join("pdf").join("SKILL.md");
-        assert!(sample.exists());
+        // Check one of the actually-embedded skills
+        let sample = root.join("skills").join("journalistic-research").join("SKILL.md");
+        assert!(sample.exists(), "missing journalistic-research/SKILL.md");
         let content = std::fs::read_to_string(sample).unwrap();
         assert!(!content.trim().is_empty());
         cleanup(&root);
@@ -63,9 +64,9 @@ mod tests {
     #[test]
     fn test_ensure_builtin_skills_does_not_overwrite_existing_file() {
         let root = temp_root();
-        let custom_pdf = root.join("skills").join("pdf");
-        std::fs::create_dir_all(&custom_pdf).unwrap();
-        let custom_file = custom_pdf.join("SKILL.md");
+        let custom = root.join("skills").join("journalistic-research");
+        std::fs::create_dir_all(&custom).unwrap();
+        let custom_file = custom.join("SKILL.md");
         std::fs::write(&custom_file, "custom-content").unwrap();
 
         ensure_builtin_skills(&root).unwrap();
@@ -75,12 +76,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_builtin_skills_includes_new_macos_and_weather_skills() {
+    fn test_ensure_builtin_skills_includes_embedded_skills() {
         let root = temp_root();
         ensure_builtin_skills(&root).unwrap();
 
         let skills_root = root.join("skills");
-        for skill in ["weather"] {
+        for skill in ["journalistic-research", "journalistic-writing"] {
             let skill_file = skills_root.join(skill).join("SKILL.md");
             assert!(skill_file.exists(), "missing built-in skill: {skill}");
             let content = std::fs::read_to_string(skill_file).unwrap();
