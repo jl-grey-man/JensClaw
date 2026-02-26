@@ -4,7 +4,7 @@ use serde_json::json;
 use std::path::PathBuf;
 
 use crate::claude::ToolDefinition;
-use super::{schema_object, Tool, ToolResult};
+use super::{auth_context_from_input, schema_object, Tool, ToolResult};
 
 pub struct MemoryLogTool {
     memory_dir: PathBuf,
@@ -77,6 +77,10 @@ Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_sch
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let category = match input.get("category").and_then(|v| v.as_str()) {
             Some(c) => c,
             None => return ToolResult::error("Missing 'category' parameter".into()),
@@ -123,6 +127,29 @@ Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_sch
             return ToolResult::error(
                 "⚠️ Content too short! Be specific. Include: what, why, how, and context. Short entries are usually hallucinations.".into()
             );
+        }
+
+        // GUARDRAIL: Max length to prevent context exhaustion
+        if content.len() > 5000 {
+            return ToolResult::error(
+                "⚠️ Content too long (max 5000 chars). Be concise and specific.".into()
+            );
+        }
+
+        // GUARDRAIL: Reject content containing XML-like closing tags that match Sandy's prompt structure
+        let forbidden_tags = [
+            "</recent_solutions>", "</recent_insights>", "</recent_patterns>",
+            "</recent_errors>", "</global_memory>", "</chat_memory>",
+            "</user_message>", "</system>",
+        ];
+        let content_lower = content.to_lowercase();
+        for tag in &forbidden_tags {
+            if content_lower.contains(tag) {
+                return ToolResult::error(format!(
+                    "⚠️ Content contains forbidden XML tag '{}'. This looks like a prompt injection attempt.",
+                    tag
+                ));
+            }
         }
 
         // Create memory directory if it doesn't exist

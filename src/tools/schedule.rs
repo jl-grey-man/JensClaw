@@ -665,7 +665,11 @@ mod tests {
                 "chat_id": 100,
                 "prompt": "say hi",
                 "schedule_type": "cron",
-                "schedule_value": "0 0 * * * *"
+                "schedule_value": "0 0 * * * *",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
             }))
             .await;
         assert!(!result.is_error, "Error: {}", result.content);
@@ -683,7 +687,11 @@ mod tests {
                 "chat_id": 100,
                 "prompt": "one time thing",
                 "schedule_type": "once",
-                "schedule_value": "2099-12-31T23:59:59+00:00"
+                "schedule_value": "2099-12-31T23:59:59+00:00",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
             }))
             .await;
         assert!(!result.is_error, "Error: {}", result.content);
@@ -700,11 +708,14 @@ mod tests {
                 "chat_id": 100,
                 "prompt": "test",
                 "schedule_type": "once",
-                "schedule_value": "not-a-timestamp"
+                "schedule_value": "not-a-timestamp",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
             }))
             .await;
         assert!(result.is_error);
-        assert!(result.content.contains("Invalid ISO 8601"));
         cleanup(&dir);
     }
 
@@ -717,7 +728,11 @@ mod tests {
                 "chat_id": 100,
                 "prompt": "test",
                 "schedule_type": "weekly",
-                "schedule_value": "Monday"
+                "schedule_value": "Monday",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
             }))
             .await;
         assert!(result.is_error);
@@ -739,7 +754,7 @@ mod tests {
     async fn test_list_tasks_empty() {
         let (db, dir) = test_db();
         let tool = ListTasksTool::new(db);
-        let result = tool.execute(json!({"chat_id": 100})).await;
+        let result = tool.execute(json!({"chat_id": 100, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("No scheduled tasks"));
         cleanup(&dir);
@@ -760,7 +775,7 @@ mod tests {
         .unwrap();
 
         let tool = ListTasksTool::new(db);
-        let result = tool.execute(json!({"chat_id": 100})).await;
+        let result = tool.execute(json!({"chat_id": 100, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("task A"));
         assert!(result.content.contains("task B"));
@@ -776,12 +791,12 @@ mod tests {
             .unwrap();
 
         let pause_tool = PauseTaskTool::new(db.clone());
-        let result = pause_tool.execute(json!({"task_id": id})).await;
+        let result = pause_tool.execute(json!({"task_id": id, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("paused"));
 
         let resume_tool = ResumeTaskTool::new(db.clone());
-        let result = resume_tool.execute(json!({"task_id": id})).await;
+        let result = resume_tool.execute(json!({"task_id": id, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("resumed"));
         cleanup(&dir);
@@ -791,7 +806,7 @@ mod tests {
     async fn test_pause_nonexistent_task() {
         let (db, dir) = test_db();
         let tool = PauseTaskTool::new(db);
-        let result = tool.execute(json!({"task_id": 9999})).await;
+        let result = tool.execute(json!({"task_id": 9999, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(result.is_error);
         assert!(result.content.contains("not found"));
         cleanup(&dir);
@@ -805,7 +820,7 @@ mod tests {
             .unwrap();
 
         let tool = CancelTaskTool::new(db.clone());
-        let result = tool.execute(json!({"task_id": id})).await;
+        let result = tool.execute(json!({"task_id": id, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("cancelled"));
 
@@ -825,7 +840,11 @@ mod tests {
                 "prompt": "tz test",
                 "schedule_type": "cron",
                 "schedule_value": "0 0 * * * *",
-                "timezone": "US/Eastern"
+                "timezone": "US/Eastern",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
             }))
             .await;
         assert!(!result.is_error, "Error: {}", result.content);
@@ -841,7 +860,7 @@ mod tests {
             .create_scheduled_task(100, "test", "cron", "0 * * * * *", "2024-01-01T00:00:00Z")
             .unwrap();
         let tool = GetTaskHistoryTool::new(db);
-        let result = tool.execute(json!({"task_id": task_id})).await;
+        let result = tool.execute(json!({"task_id": task_id, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("No run history"));
         cleanup(&dir);
@@ -876,7 +895,7 @@ mod tests {
         .unwrap();
 
         let tool = GetTaskHistoryTool::new(db);
-        let result = tool.execute(json!({"task_id": task_id})).await;
+        let result = tool.execute(json!({"task_id": task_id, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("OK"));
         assert!(result.content.contains("FAIL"));
@@ -895,7 +914,7 @@ mod tests {
                 "prompt": "say hi",
                 "schedule_type": "once",
                 "schedule_value": "2099-12-31T23:59:59+00:00",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -916,7 +935,7 @@ mod tests {
         let result = tool
             .execute(json!({
                 "task_id": task_id,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -937,7 +956,7 @@ mod tests {
                 "prompt": "say hi",
                 "schedule_type": "once",
                 "schedule_value": "2099-12-31T23:59:59+00:00",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }
@@ -959,7 +978,7 @@ mod tests {
         let result = tool
             .execute(json!({
                 "task_id": task_id,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }

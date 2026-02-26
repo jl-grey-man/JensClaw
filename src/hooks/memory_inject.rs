@@ -18,6 +18,15 @@ pub struct MemoryInjectHook {
 const CACHE_TTL_SECS: u64 = 300; // 5 minutes
 const TARGET_TOOLS: &[&str] = &["send_message", "sub_agent"];
 
+/// Escape XML special characters in memory content before injecting into tool inputs.
+/// Prevents poisoned memory entries from performing prompt injection on sub-agents.
+fn sanitize_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 impl MemoryInjectHook {
     pub fn new(memory_dir: PathBuf) -> Self {
         Self {
@@ -149,18 +158,22 @@ impl PreHook for MemoryInjectHook {
             return Ok(None);
         }
 
+        // Sanitize memory context before injecting to prevent prompt injection
+        // from poisoned memory entries propagating to sub-agents
+        let safe_context = sanitize_xml(&context);
+
         // Inject context into the tool input
         let mut modified = ctx.input.clone();
         if ctx.tool_name == "sub_agent" {
             // Add context to the task description
             if let Some(task) = modified.get("task").and_then(|v| v.as_str()) {
-                let enriched = format!("{}{}", task, context);
+                let enriched = format!("{}{}", task, safe_context);
                 modified["task"] = serde_json::Value::String(enriched);
             }
         }
         // For send_message, we inject into a special context field
         if ctx.tool_name == "send_message" {
-            modified["__memory_context"] = serde_json::Value::String(context);
+            modified["__memory_context"] = serde_json::Value::String(safe_context);
         }
 
         Ok(Some(modified))

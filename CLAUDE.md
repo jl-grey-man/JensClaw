@@ -171,22 +171,11 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - **Memory verification:** Solutions logged to memory must include `verification` field with proof
 - **No direct web access:** Sandy delegates research to Zilla agent, writing to Gonza agent
 
-## Known Test Failures (18 tests, 6 categories)
+## Known Test Failures (9 tests, 5 categories)
 
-### A. Auth key rename (`__microclaw_auth` → `__sandy_auth`) — 8 tests
+### A. Auth key rename — FIXED
 
-Tests still insert `__microclaw_auth` into context. `auth_context_from_input()` returns `None`, authorization is silently skipped, "permission denied" never fires.
-
-- `test_export_chat_permission_denied` (`src/tools/export_chat.rs`)
-- `test_read_memory_chat_permission_denied` (`src/tools/memory.rs`)
-- `test_write_memory_global_denied_for_non_control_chat` (`src/tools/memory.rs`)
-- `test_send_message_permission_denied_before_network` (`src/tools/send_message.rs`)
-- `test_pause_task_permission_denied_cross_chat` (`src/tools/schedule.rs`)
-- `test_schedule_task_permission_denied_cross_chat` (`src/tools/schedule.rs`)
-- `test_todo_read_permission_denied` (`src/tools/todo.rs`)
-- `test_todo_write_permission_denied` (`src/tools/todo.rs`)
-
-**Fix:** Find-replace `__microclaw_auth` → `__sandy_auth` in test code.
+All `__microclaw_auth` → `__sandy_auth` renames done. Auth is now fail-closed (missing auth = denied). All auth tests pass.
 
 ### B. Config default changes not reflected in tests — 2 tests
 
@@ -232,13 +221,18 @@ Tests still insert `__microclaw_auth` into context. `auth_context_from_input()` 
 
 **Fix:** Loosen `validate_path` to handle not-yet-created parent dirs, or create dirs before validation.
 
-### G. Scheduled task timestamp parsing — 1 test
+### G. Scheduled task timestamp parsing — FIXED
 
-Expected error `"Invalid ISO 8601"` but natural language datetime parsing changed the error path.
+Test now passes with auth context added.
 
-- `test_schedule_task_invalid_once_timestamp` (`src/tools/schedule.rs`)
+## Security Model — Memory System
 
-**Fix:** Update expected error message or test input.
+- **Prompt injection prevention:** All memory content (AGENTS.md, insights, solutions, patterns, errors, rules) is XML-escaped via `sanitize_xml()` before injection into system prompts (`src/memory.rs`)
+- **Fail-closed auth:** `authorize_chat_access()` and all write tools (memory, patterns, tracking, memory_log) require `__sandy_auth` context. Missing auth = denied.
+- **Auth on write tools:** `create_pattern`, `add_observation`, `update_hypothesis`, `create_goal`, `create_project`, `create_task`, `update_status`, `add_note`, `remove_note`, `log_memory` all require auth
+- **Confidence lock protection:** Only control chats can set `confidence_locked = true` on patterns
+- **Hook injection escaping:** Memory context injected into sub-agent tasks via `MemoryInjectHook` is XML-escaped
+- **Input validation:** Memory writes reject content >5000 chars, pattern fields >1000 chars, notes >2000 chars. Content containing XML closing tags matching prompt structure (e.g., `</recent_solutions>`) is rejected.
 
 ## Tech Debt & Fragilities
 

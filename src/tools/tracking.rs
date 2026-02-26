@@ -9,7 +9,23 @@ use crate::activity::{ActivityEntry, ActivityLogger};
 use crate::atomic_io::atomic_write_json;
 use crate::claude::ToolDefinition;
 
-use super::{schema_object, Tool, ToolResult};
+use super::{auth_context_from_input, schema_object, Tool, ToolResult};
+
+/// Reject content that contains XML closing tags matching Sandy's prompt structure.
+fn validate_no_injection(text: &str) -> Result<(), String> {
+    let forbidden_tags = [
+        "</recent_solutions>", "</recent_insights>", "</recent_patterns>",
+        "</recent_errors>", "</global_memory>", "</chat_memory>",
+        "</user_message>", "</system>",
+    ];
+    let lower = text.to_lowercase();
+    for tag in &forbidden_tags {
+        if lower.contains(tag) {
+            return Err(format!("Content contains forbidden XML tag '{}'", tag));
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Goal {
@@ -369,6 +385,10 @@ impl Tool for CreateGoalTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let title = match input.get("title").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'title' parameter".into()),
@@ -459,6 +479,10 @@ impl Tool for CreateProjectTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let title = match input.get("title").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'title' parameter".into()),
@@ -572,6 +596,10 @@ impl Tool for CreateTaskTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let title = match input.get("title").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'title' parameter".into()),
@@ -681,6 +709,10 @@ impl Tool for UpdateStatusTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let item_type = match input.get("item_type").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'item_type' parameter".into()),
@@ -803,6 +835,10 @@ impl Tool for AddNoteTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let item_type = match input.get("item_type").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'item_type' parameter".into()),
@@ -817,6 +853,14 @@ impl Tool for AddNoteTool {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'note' parameter".into()),
         };
+
+        // Input validation
+        if note_text.len() > 2000 {
+            return ToolResult::error("Note too long (max 2000 chars)".into());
+        }
+        if let Err(e) = validate_no_injection(&note_text) {
+            return ToolResult::error(format!("⚠️ {}", e));
+        }
 
         let mut data = read_tracking(&self.data_dir);
         let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string();
@@ -940,6 +984,10 @@ impl Tool for RemoveNoteTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let item_type = match input.get("item_type").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'item_type' parameter".into()),
@@ -1098,42 +1146,69 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    fn test_auth() -> serde_json::Value {
+        json!({
+            "caller_chat_id": 100,
+            "control_chat_ids": [100]
+        })
+    }
+
     #[tokio::test]
     async fn test_create_goal() {
         let dir = test_dir();
         let tool = CreateGoalTool::new(dir.to_str().unwrap());
-        
+
         let result = tool.execute(json!({
             "title": "Get Fit",
-            "description": "Exercise regularly"
+            "description": "Exercise regularly",
+            "__sandy_auth": test_auth()
         })).await;
-        
-        assert!(!result.is_error);
+
+        assert!(!result.is_error, "{}", result.content);
         assert!(result.content.contains("Get Fit"));
-        
+
+        cleanup(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_create_goal_denied_without_auth() {
+        let dir = test_dir();
+        let tool = CreateGoalTool::new(dir.to_str().unwrap());
+
+        let result = tool.execute(json!({
+            "title": "Sneaky Goal"
+        })).await;
+
+        assert!(result.is_error);
+        assert!(result.content.contains("Permission denied"));
+
         cleanup(&dir);
     }
 
     #[tokio::test]
     async fn test_create_project() {
         let dir = test_dir();
-        
+
         // First create a goal
         let goal_tool = CreateGoalTool::new(dir.to_str().unwrap());
-        goal_tool.execute(json!({"title": "Test Goal"})).await;
-        
+        goal_tool.execute(json!({
+            "title": "Test Goal",
+            "__sandy_auth": test_auth()
+        })).await;
+
         let data = read_tracking(&dir);
         let goal_id = &data.goals[0].id;
-        
+
         // Then create project linked to goal
         let proj_tool = CreateProjectTool::new(dir.to_str().unwrap());
         let result = proj_tool.execute(json!({
             "title": "Website Redesign",
-            "goal_id": goal_id
+            "goal_id": goal_id,
+            "__sandy_auth": test_auth()
         })).await;
-        
-        assert!(!result.is_error);
-        
+
+        assert!(!result.is_error, "{}", result.content);
+
         cleanup(&dir);
     }
 }

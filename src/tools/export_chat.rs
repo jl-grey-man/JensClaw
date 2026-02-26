@@ -128,7 +128,7 @@ mod tests {
     async fn test_export_empty_chat() {
         let (db, dir) = test_db();
         let tool = ExportChatTool::new(db, dir.to_str().unwrap());
-        let result = tool.execute(json!({"chat_id": 999})).await;
+        let result = tool.execute(json!({"chat_id": 999, "__sandy_auth": {"caller_chat_id": 999, "control_chat_ids": [999]}})).await;
         assert!(result.is_error);
         assert!(result.content.contains("No messages"));
         cleanup(&dir);
@@ -159,7 +159,7 @@ mod tests {
         let out_path = dir.join("test_export.md");
         let tool = ExportChatTool::new(db, dir.to_str().unwrap());
         let result = tool
-            .execute(json!({"chat_id": 100, "path": out_path.to_str().unwrap()}))
+            .execute(json!({"chat_id": 100, "path": out_path.to_str().unwrap(), "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}}))
             .await;
         assert!(!result.is_error, "Error: {}", result.content);
         assert!(result.content.contains("2 messages"));
@@ -189,7 +189,7 @@ mod tests {
         let result = tool
             .execute(json!({
                 "chat_id": 200,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -218,7 +218,7 @@ mod tests {
             .execute(json!({
                 "chat_id": 200,
                 "path": out_path.to_str().unwrap(),
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }

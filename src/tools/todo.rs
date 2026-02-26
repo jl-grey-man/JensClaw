@@ -299,7 +299,7 @@ mod tests {
     async fn test_todo_read_empty() {
         let dir = test_dir();
         let tool = TodoReadTool::new(dir.to_str().unwrap());
-        let result = tool.execute(json!({"chat_id": 100})).await;
+        let result = tool.execute(json!({"chat_id": 100, "__sandy_auth": {"caller_chat_id": 100, "control_chat_ids": [100]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("No tasks"));
         cleanup(&dir);
@@ -328,13 +328,14 @@ mod tests {
                     {"task": "Research", "status": "completed"},
                     {"task": "Implement", "status": "in_progress"},
                     {"task": "Test", "status": "pending"}
-                ]
+                ],
+                "__sandy_auth": {"caller_chat_id": 42, "control_chat_ids": [42]}
             }))
             .await;
         assert!(!result.is_error);
         assert!(result.content.contains("3 tasks"));
 
-        let result = read_tool.execute(json!({"chat_id": 42})).await;
+        let result = read_tool.execute(json!({"chat_id": 42, "__sandy_auth": {"caller_chat_id": 42, "control_chat_ids": [42]}})).await;
         assert!(!result.is_error);
         assert!(result.content.contains("[x] Research"));
         assert!(result.content.contains("[~] Implement"));
@@ -347,10 +348,12 @@ mod tests {
         let dir = test_dir();
         let tool = TodoWriteTool::new(dir.to_str().unwrap());
 
+        // No chat_id at all
         let result = tool.execute(json!({})).await;
         assert!(result.is_error);
 
-        let result = tool.execute(json!({"chat_id": 1})).await;
+        // Has chat_id and auth but no todos
+        let result = tool.execute(json!({"chat_id": 1, "__sandy_auth": {"caller_chat_id": 1, "control_chat_ids": [1]}})).await;
         assert!(result.is_error);
         cleanup(&dir);
     }
@@ -362,7 +365,8 @@ mod tests {
         let result = tool
             .execute(json!({
                 "chat_id": 1,
-                "todos": "not an array"
+                "todos": "not an array",
+                "__sandy_auth": {"caller_chat_id": 1, "control_chat_ids": [1]}
             }))
             .await;
         assert!(result.is_error);
@@ -379,18 +383,20 @@ mod tests {
         write_tool
             .execute(json!({
                 "chat_id": 1,
-                "todos": [{"task": "Old task", "status": "pending"}]
+                "todos": [{"task": "Old task", "status": "pending"}],
+                "__sandy_auth": {"caller_chat_id": 1, "control_chat_ids": [1]}
             }))
             .await;
 
         write_tool
             .execute(json!({
                 "chat_id": 1,
-                "todos": [{"task": "New task", "status": "in_progress"}]
+                "todos": [{"task": "New task", "status": "in_progress"}],
+                "__sandy_auth": {"caller_chat_id": 1, "control_chat_ids": [1]}
             }))
             .await;
 
-        let result = read_tool.execute(json!({"chat_id": 1})).await;
+        let result = read_tool.execute(json!({"chat_id": 1, "__sandy_auth": {"caller_chat_id": 1, "control_chat_ids": [1]}})).await;
         assert!(result.content.contains("New task"));
         assert!(!result.content.contains("Old task"));
         cleanup(&dir);
@@ -403,7 +409,7 @@ mod tests {
         let result = tool
             .execute(json!({
                 "chat_id": 200,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -422,7 +428,7 @@ mod tests {
             .execute(json!({
                 "chat_id": 200,
                 "todos": [{"task": "x", "status": "pending"}],
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -442,7 +448,7 @@ mod tests {
             .execute(json!({
                 "chat_id": 200,
                 "todos": [{"task": "cross", "status": "pending"}],
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }
@@ -452,7 +458,7 @@ mod tests {
         let result = read_tool
             .execute(json!({
                 "chat_id": 200,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }

@@ -10,7 +10,23 @@ use crate::atomic_io::atomic_write_json;
 use crate::claude::ToolDefinition;
 use crate::memory_decay;
 
-use super::{schema_object, Tool, ToolResult};
+use super::{auth_context_from_input, schema_object, Tool, ToolResult};
+
+/// Reject content that contains XML closing tags matching Sandy's prompt structure.
+fn validate_no_injection(text: &str) -> Result<(), String> {
+    let forbidden_tags = [
+        "</recent_solutions>", "</recent_insights>", "</recent_patterns>",
+        "</recent_errors>", "</global_memory>", "</chat_memory>",
+        "</user_message>", "</system>",
+    ];
+    let lower = text.to_lowercase();
+    for tag in &forbidden_tags {
+        if lower.contains(tag) {
+            return Err(format!("Content contains forbidden XML tag '{}'", tag));
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pattern {
@@ -337,6 +353,10 @@ impl Tool for AddObservationTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let pattern_id = match input.get("pattern_id").and_then(|v| v.as_str()) {
             Some(id) => id.to_string(),
             None => return ToolResult::error("Missing 'pattern_id' parameter".into()),
@@ -357,6 +377,14 @@ impl Tool for AddObservationTool {
             .get("supports_pattern")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
+
+        // Input validation
+        if observation_text.len() > 1000 || context.len() > 1000 {
+            return ToolResult::error("Field too long (max 1000 chars for observation/context)".into());
+        }
+        if let Err(e) = validate_no_injection(&observation_text).and_then(|_| validate_no_injection(&context)) {
+            return ToolResult::error(format!("⚠️ {}", e));
+        }
 
         let mut data = read_patterns(&self.data_dir);
 
@@ -452,6 +480,11 @@ impl Tool for UpdateHypothesisTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        let auth = match auth_context_from_input(&input) {
+            Some(a) => a,
+            None => return ToolResult::error("Permission denied: missing auth context".into()),
+        };
+
         let pattern_id = match input.get("pattern_id").and_then(|v| v.as_str()) {
             Some(id) => id.to_string(),
             None => return ToolResult::error("Missing 'pattern_id' parameter".into()),
@@ -461,6 +494,14 @@ impl Tool for UpdateHypothesisTool {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'hypothesis' parameter".into()),
         };
+
+        // Input validation
+        if hypothesis.len() > 1000 {
+            return ToolResult::error("Hypothesis too long (max 1000 chars)".into());
+        }
+        if let Err(e) = validate_no_injection(&hypothesis) {
+            return ToolResult::error(format!("⚠️ {}", e));
+        }
 
         let mut data = read_patterns(&self.data_dir);
 
@@ -477,9 +518,12 @@ impl Tool for UpdateHypothesisTool {
         pattern.hypothesis = Some(hypothesis);
 
         // Update confidence if provided — also lock it so auto-calculation doesn't override
+        // Only control chats can lock confidence to prevent abuse
         if let Some(confidence) = input.get("confidence").and_then(|v| v.as_i64()) {
             pattern.confidence = confidence as i32;
-            pattern.confidence_locked = true;
+            if auth.is_control_chat() {
+                pattern.confidence_locked = true;
+            }
         }
 
         pattern.last_updated = chrono::Utc::now().to_rfc3339();
@@ -551,6 +595,10 @@ impl Tool for CreatePatternTool {
     }
 
     async fn execute(&self, input: serde_json::Value) -> ToolResult {
+        if auth_context_from_input(&input).is_none() {
+            return ToolResult::error("Permission denied: missing auth context".into());
+        }
+
         let id = match input.get("id").and_then(|v| v.as_str()) {
             Some(text) => text.to_string(),
             None => return ToolResult::error("Missing 'id' parameter".into()),
@@ -571,6 +619,14 @@ impl Tool for CreatePatternTool {
             .and_then(|v| v.as_str())
             .unwrap_or("general")
             .to_string();
+
+        // Input validation
+        if name.len() > 1000 || description.len() > 1000 {
+            return ToolResult::error("Field too long (max 1000 chars for name/description)".into());
+        }
+        if let Err(e) = validate_no_injection(&name).and_then(|_| validate_no_injection(&description)) {
+            return ToolResult::error(format!("⚠️ {}", e));
+        }
 
         let mut data = read_patterns(&self.data_dir);
 
@@ -876,6 +932,20 @@ mod tests {
         cleanup(&dir);
     }
 
+    fn test_auth() -> serde_json::Value {
+        json!({
+            "caller_chat_id": 100,
+            "control_chat_ids": [100]
+        })
+    }
+
+    fn test_auth_non_control() -> serde_json::Value {
+        json!({
+            "caller_chat_id": 200,
+            "control_chat_ids": [100]
+        })
+    }
+
     #[tokio::test]
     async fn test_create_pattern() {
         let dir = test_dir();
@@ -885,11 +955,29 @@ mod tests {
             "id": "test_pattern",
             "name": "Test Pattern",
             "description": "A test pattern",
-            "category": "test"
+            "category": "test",
+            "__sandy_auth": test_auth()
         })).await;
 
         assert!(!result.is_error);
         assert!(result.content.contains("Test Pattern"));
+
+        cleanup(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_create_pattern_denied_without_auth() {
+        let dir = test_dir();
+        let tool = CreatePatternTool::new(dir.to_str().unwrap());
+
+        let result = tool.execute(json!({
+            "id": "test",
+            "name": "Test",
+            "description": "desc"
+        })).await;
+
+        assert!(result.is_error);
+        assert!(result.content.contains("Permission denied"));
 
         cleanup(&dir);
     }
@@ -903,7 +991,8 @@ mod tests {
         create_tool.execute(json!({
             "id": "focus",
             "name": "Focus Patterns",
-            "description": "Testing focus"
+            "description": "Testing focus",
+            "__sandy_auth": test_auth()
         })).await;
 
         // Then add observation
@@ -911,7 +1000,8 @@ mod tests {
         let result = add_tool.execute(json!({
             "pattern_id": "focus",
             "observation": "User focuses better in mornings",
-            "context": "Morning conversation"
+            "context": "Morning conversation",
+            "__sandy_auth": test_auth()
         })).await;
 
         assert!(!result.is_error);
@@ -927,7 +1017,8 @@ mod tests {
         create_tool.execute(json!({
             "id": "test_contra",
             "name": "Contradiction Test",
-            "description": "Testing contradictions"
+            "description": "Testing contradictions",
+            "__sandy_auth": test_auth()
         })).await;
 
         let add_tool = AddObservationTool::new(dir.to_str().unwrap());
@@ -937,7 +1028,8 @@ mod tests {
             add_tool.execute(json!({
                 "pattern_id": "test_contra",
                 "observation": "supports pattern",
-                "supports_pattern": true
+                "supports_pattern": true,
+                "__sandy_auth": test_auth()
             })).await;
         }
 
@@ -948,7 +1040,8 @@ mod tests {
         add_tool.execute(json!({
             "pattern_id": "test_contra",
             "observation": "contradicts pattern",
-            "supports_pattern": false
+            "supports_pattern": false,
+            "__sandy_auth": test_auth()
         })).await;
 
         let data = read_patterns(&dir);
@@ -956,6 +1049,47 @@ mod tests {
 
         assert!(conf_after < conf_before,
             "Confidence should drop after contradiction: before={}, after={}", conf_before, conf_after);
+
+        cleanup(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_confidence_lock_requires_control_chat() {
+        let dir = test_dir();
+        let create_tool = CreatePatternTool::new(dir.to_str().unwrap());
+        create_tool.execute(json!({
+            "id": "lock_test",
+            "name": "Lock Test",
+            "description": "Testing confidence lock protection",
+            "__sandy_auth": test_auth()
+        })).await;
+
+        // Non-control chat sets confidence — should NOT lock
+        let hyp_tool = UpdateHypothesisTool::new(dir.to_str().unwrap());
+        hyp_tool.execute(json!({
+            "pattern_id": "lock_test",
+            "hypothesis": "test hypothesis",
+            "confidence": 80,
+            "__sandy_auth": test_auth_non_control()
+        })).await;
+
+        let data = read_patterns(&dir);
+        let pattern = data.patterns.iter().find(|p| p.id == "lock_test").unwrap();
+        assert_eq!(pattern.confidence, 80);
+        assert!(!pattern.confidence_locked, "Non-control chat should not be able to lock confidence");
+
+        // Control chat sets confidence — SHOULD lock
+        hyp_tool.execute(json!({
+            "pattern_id": "lock_test",
+            "hypothesis": "updated hypothesis",
+            "confidence": 90,
+            "__sandy_auth": test_auth()
+        })).await;
+
+        let data = read_patterns(&dir);
+        let pattern = data.patterns.iter().find(|p| p.id == "lock_test").unwrap();
+        assert_eq!(pattern.confidence, 90);
+        assert!(pattern.confidence_locked, "Control chat should be able to lock confidence");
 
         cleanup(&dir);
     }

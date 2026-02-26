@@ -74,7 +74,7 @@ mod tests {
             .execute(json!({
                 "chat_id": 200,
                 "text": "hello",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -91,7 +91,7 @@ mod tests {
             .execute(json!({
                 "chat_id": 200,
                 "text": "hello",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }

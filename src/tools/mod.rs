@@ -98,15 +98,18 @@ pub fn auth_context_from_input(input: &serde_json::Value) -> Option<ToolAuthCont
 }
 
 pub fn authorize_chat_access(input: &serde_json::Value, target_chat_id: i64) -> Result<(), String> {
-    if let Some(auth) = auth_context_from_input(input) {
-        if !auth.can_access_chat(target_chat_id) {
-            return Err(format!(
-                "Permission denied: chat {} cannot operate on chat {}",
-                auth.caller_chat_id, target_chat_id
-            ));
+    match auth_context_from_input(input) {
+        Some(auth) => {
+            if !auth.can_access_chat(target_chat_id) {
+                return Err(format!(
+                    "Permission denied: chat {} cannot operate on chat {}",
+                    auth.caller_chat_id, target_chat_id
+                ));
+            }
+            Ok(())
         }
+        None => Err("Permission denied: missing auth context".into()),
     }
-    Ok(())
 }
 
 pub fn inject_auth_context(input: serde_json::Value, auth: &ToolAuthContext) -> serde_json::Value {

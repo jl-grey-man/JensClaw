@@ -137,12 +137,19 @@ impl Tool for WriteMemoryTool {
 
         let path = match scope {
             "global" => {
-                if let Some(auth) = auth_context_from_input(&input) {
-                    if !auth.is_control_chat() {
-                        return ToolResult::error(format!(
-                            "Permission denied: chat {} cannot write global memory",
-                            auth.caller_chat_id
-                        ));
+                match auth_context_from_input(&input) {
+                    Some(auth) => {
+                        if !auth.is_control_chat() {
+                            return ToolResult::error(format!(
+                                "Permission denied: chat {} cannot write global memory",
+                                auth.caller_chat_id
+                            ));
+                        }
+                    }
+                    None => {
+                        return ToolResult::error(
+                            "Permission denied: missing auth context".into(),
+                        );
                     }
                 }
                 self.groups_dir.join("AGENTS.md")
@@ -201,9 +208,16 @@ mod tests {
         let read_tool = ReadMemoryTool::new(dir.to_str().unwrap());
 
         let result = write_tool
-            .execute(json!({"scope": "global", "content": "user prefers Rust"}))
+            .execute(json!({
+                "scope": "global",
+                "content": "user prefers Rust",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
+            }))
             .await;
-        assert!(!result.is_error);
+        assert!(!result.is_error, "{}", result.content);
         assert!(result.content.contains("Memory saved"));
 
         let result = read_tool.execute(json!({"scope": "global"})).await;
@@ -214,20 +228,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_write_memory_global_denied_without_auth() {
+        let dir = test_dir();
+        let tool = WriteMemoryTool::new(dir.to_str().unwrap());
+        let result = tool
+            .execute(json!({"scope": "global", "content": "sneaky"}))
+            .await;
+        assert!(result.is_error);
+        assert!(result.content.contains("Permission denied"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
     async fn test_write_and_read_memory_chat() {
         let dir = test_dir();
         let write_tool = WriteMemoryTool::new(dir.to_str().unwrap());
         let read_tool = ReadMemoryTool::new(dir.to_str().unwrap());
 
         let result = write_tool
-            .execute(json!({"scope": "chat", "chat_id": 42, "content": "chat 42 notes"}))
+            .execute(json!({
+                "scope": "chat",
+                "chat_id": 42,
+                "content": "chat 42 notes",
+                "__sandy_auth": {
+                    "caller_chat_id": 42,
+                    "control_chat_ids": []
+                }
+            }))
             .await;
-        assert!(!result.is_error);
+        assert!(!result.is_error, "{}", result.content);
 
         let result = read_tool
-            .execute(json!({"scope": "chat", "chat_id": 42}))
+            .execute(json!({
+                "scope": "chat",
+                "chat_id": 42,
+                "__sandy_auth": {
+                    "caller_chat_id": 42,
+                    "control_chat_ids": []
+                }
+            }))
             .await;
-        assert!(!result.is_error);
+        assert!(!result.is_error, "{}", result.content);
         assert_eq!(result.content, "chat 42 notes");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -270,7 +311,14 @@ mod tests {
         let read_tool = ReadMemoryTool::new(dir.to_str().unwrap());
 
         write_tool
-            .execute(json!({"scope": "global", "content": "   "}))
+            .execute(json!({
+                "scope": "global",
+                "content": "   ",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
+            }))
             .await;
 
         let result = read_tool.execute(json!({"scope": "global"})).await;
@@ -288,7 +336,7 @@ mod tests {
             .execute(json!({
                 "scope": "global",
                 "content": "secret",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -307,7 +355,7 @@ mod tests {
             .execute(json!({
                 "scope": "global",
                 "content": "global ok",
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }
@@ -327,7 +375,7 @@ mod tests {
             .execute(json!({
                 "scope": "chat",
                 "chat_id": 200,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": []
                 }
@@ -344,13 +392,21 @@ mod tests {
         let write_tool = WriteMemoryTool::new(dir.to_str().unwrap());
         let read_tool = ReadMemoryTool::new(dir.to_str().unwrap());
         write_tool
-            .execute(json!({"scope": "chat", "chat_id": 200, "content": "chat200"}))
+            .execute(json!({
+                "scope": "chat",
+                "chat_id": 200,
+                "content": "chat200",
+                "__sandy_auth": {
+                    "caller_chat_id": 100,
+                    "control_chat_ids": [100]
+                }
+            }))
             .await;
         let result = read_tool
             .execute(json!({
                 "scope": "chat",
                 "chat_id": 200,
-                "__microclaw_auth": {
+                "__sandy_auth": {
                     "caller_chat_id": 100,
                     "control_chat_ids": [100]
                 }
