@@ -430,7 +430,9 @@ async fn handle_message(
             is_from_bot: false,
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
-        let _ = state.db.store_message(&stored);
+        if let Err(e) = state.db.store_message(&stored) {
+            tracing::error!("Failed to store message for chat {}: {e}", stored.chat_id);
+        }
         return Ok(());
     }
 
@@ -459,7 +461,9 @@ async fn handle_message(
         is_from_bot: false,
         timestamp: chrono::Utc::now().to_rfc3339(),
     };
-    let _ = state.db.store_message(&stored);
+    if let Err(e) = state.db.store_message(&stored) {
+        tracing::error!("Failed to store message for chat {chat_id}: {e}");
+    }
 
     // Determine if we should respond
     let should_respond = match chat_type {
@@ -798,7 +802,9 @@ pub async fn process_with_claude_mode(
             });
             strip_images_for_session(&mut messages);
             if let Ok(json) = serde_json::to_string(&messages) {
-                let _ = state.db.save_session(chat_id, &json);
+                if let Err(e) = state.db.save_session(chat_id, &json) {
+                    tracing::error!("Failed to save session for chat {chat_id}: {e}");
+                }
                 meta.session_saved = true;
             }
 
@@ -887,7 +893,9 @@ pub async fn process_with_claude_mode(
         });
         strip_images_for_session(&mut messages);
         if let Ok(json) = serde_json::to_string(&messages) {
-            let _ = state.db.save_session(chat_id, &json);
+            if let Err(e) = state.db.save_session(chat_id, &json) {
+                tracing::error!("Failed to save session for chat {chat_id}: {e}");
+            }
             meta.session_saved = true;
         }
 
@@ -908,7 +916,9 @@ pub async fn process_with_claude_mode(
     });
     strip_images_for_session(&mut messages);
     if let Ok(json) = serde_json::to_string(&messages) {
-        let _ = state.db.save_session(chat_id, &json);
+        if let Err(e) = state.db.save_session(chat_id, &json) {
+            tracing::error!("Failed to save session for chat {chat_id}: {e}");
+        }
         meta.session_saved = true;
     }
 

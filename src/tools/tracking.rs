@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 
 use crate::activity::{ActivityEntry, ActivityLogger};
@@ -10,6 +10,12 @@ use crate::atomic_io::atomic_write_json;
 use crate::claude::ToolDefinition;
 
 use super::{auth_context_from_input, schema_object, Tool, ToolResult};
+
+lazy_static::lazy_static! {
+    /// File-level lock for tracking.json read-modify-write operations.
+    /// Prevents concurrent writes from silently losing data.
+    static ref TRACKING_LOCK: Mutex<()> = Mutex::new(());
+}
 
 /// Reject content that contains XML closing tags matching Sandy's prompt structure.
 fn validate_no_injection(text: &str) -> Result<(), String> {
@@ -397,6 +403,8 @@ impl Tool for CreateGoalTool {
         let description = input.get("description").and_then(|v| v.as_str()).map(String::from);
         let target_date = input.get("target_date").and_then(|v| v.as_str()).map(String::from);
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
         let mut data = read_tracking(&self.data_dir);
 
         let goal = Goal {
@@ -491,6 +499,7 @@ impl Tool for CreateProjectTool {
         let description = input.get("description").and_then(|v| v.as_str()).map(String::from);
         let goal_id = input.get("goal_id").and_then(|v| v.as_str()).map(String::from);
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_tracking(&self.data_dir);
 
         // Validate goal_id if provided
@@ -610,6 +619,7 @@ impl Tool for CreateTaskTool {
         let goal_id = input.get("goal_id").and_then(|v| v.as_str()).map(String::from);
         let due_date = input.get("due_date").and_then(|v| v.as_str()).map(String::from);
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_tracking(&self.data_dir);
 
         // Validate IDs if provided
@@ -728,6 +738,7 @@ impl Tool for UpdateStatusTool {
             None => return ToolResult::error("Missing 'status' parameter".into()),
         };
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_tracking(&self.data_dir);
 
         let updated = match item_type.as_str() {
@@ -862,6 +873,7 @@ impl Tool for AddNoteTool {
             return ToolResult::error(format!("⚠️ {}", e));
         }
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_tracking(&self.data_dir);
         let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string();
         let new_note = format!("[{}] {}", timestamp, note_text);
@@ -1003,6 +1015,7 @@ impl Tool for RemoveNoteTool {
             None => return ToolResult::error("Missing 'note_index' parameter".into()),
         };
 
+        let _lock = TRACKING_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_tracking(&self.data_dir);
 
         let result = match item_type.as_str() {

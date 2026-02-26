@@ -184,6 +184,23 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - **Hook injection escaping:** Memory context injected into sub-agent tasks via `MemoryInjectHook` is XML-escaped
 - **Input validation:** Memory writes reject content >5000 chars, pattern fields >1000 chars, notes >2000 chars. Content containing XML closing tags matching prompt structure (e.g., `</recent_solutions>`) is rejected.
 
+## Recent Changes
+
+### Scheduler Conversation Awareness
+- `scheduler.rs`: `build_context_aware_prompt()` checks last message timestamp before firing tasks. If conversation active (<5 min), prepends context note telling LLM not to greet. If recent (<30 min), tells LLM to keep it casual.
+- `db.rs`: Added `get_last_message_timestamp(chat_id)` method.
+
+### Soul File Formatting (No Asterisks)
+- `soul/SOUL.md`, `soul/AGENTS.md`, `soul/IDENTITY.md`: Removed all `**bold**` and `_italic_` markdown formatting. Replaced with ALL CAPS headers, plain text, [Brackets] for emphasis, dashes for lists. Matches formatting rules in `rules.md`.
+
+### Memory Security (previous session)
+- `memory.rs`: All memory content XML-escaped via `sanitize_xml()` before prompt injection
+- `tools/mod.rs`: `authorize_chat_access()` is fail-closed (missing auth = denied)
+- `tools/patterns.rs`, `tracking.rs`, `memory_log.rs`: Auth required on all write tools
+- `tools/patterns.rs`: Confidence lock requires control chat
+- `hooks/memory_inject.rs`: Memory context XML-escaped before sub-agent injection
+- Input validation: max length limits + forbidden XML tag rejection on memory/pattern/tracking writes
+
 ## Tech Debt & Fragilities
 
 - `microclaw.db` and `sandy.db` both exist in runtime dir (legacy naming)
@@ -193,3 +210,26 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - Conversation logs accumulate without rotation
 - `patterns.json` schema has been reworked multiple times; old entries may have stale fields
 - WhatsApp and Discord integrations are experimental/incomplete
+
+## Known Fragilities (from red-team analysis)
+
+### FIXED — Concurrent file access
+- `tracking.json`: `TRACKING_LOCK` static Mutex in `tracking.rs` wraps all 6 read-modify-write tools
+- `patterns.json`: `PATTERNS_LOCK` static Mutex in `patterns.rs` wraps all 3 read-modify-write tools
+- Memory `.md` files: `MEMORY_LOG_LOCK` static Mutex in `memory_log.rs` wraps read-append-write
+- Session save race: still exists (scheduler vs user messages) — session is per-chat SQLite row, hard to lock without major refactor
+
+### FIXED — Silent error swallowing
+- `telegram.rs`: All 5 `let _ =` on `save_session`/`store_message` replaced with `tracing::error!` logging
+- `llm.rs`: `unwrap_or_default()` on tool JSON replaced with explicit error handling + `__parse_error` field
+- `db.rs`: All `.lock().unwrap()` replaced with `.lock().unwrap_or_else(|e| e.into_inner())` for poison recovery
+
+### FIXED — Resource growth
+- Sub-agent messages: compacted after 40 messages (old tool results truncated to 100 chars, last 30 kept intact)
+- WAL file: `PRAGMA wal_checkpoint(TRUNCATE)` runs on startup
+- Pattern evidence: capped at 100 per pattern (oldest removed on overflow)
+
+### REMAINING
+- Memory entry splitting uses `"\n## "` delimiter — breaks if entry body contains markdown headers
+- Duplicate proactive schedules: FIXED — `ensure_for_chat` now deletes existing proactive tasks before recreating (idempotent)
+- Timezone fallback: FIXED — now logs `tracing::warn!` before falling back to UTC

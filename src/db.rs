@@ -52,6 +52,8 @@ impl Database {
 
         let conn = Connection::open(db_path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        // Checkpoint WAL on startup to prevent unbounded growth
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS chats (
@@ -128,7 +130,7 @@ impl Database {
         chat_title: Option<&str>,
         chat_type: &str,
     ) -> Result<(), MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO chats (chat_id, chat_title, chat_type, last_message_time)
@@ -142,7 +144,7 @@ impl Database {
     }
 
     pub fn store_message(&self, msg: &StoredMessage) -> Result<(), MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         conn.execute(
             "INSERT OR REPLACE INTO messages (id, chat_id, sender_name, content, is_from_bot, timestamp)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -163,7 +165,7 @@ impl Database {
         chat_id: i64,
         limit: usize,
     ) -> Result<Vec<StoredMessage>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, chat_id, sender_name, content, is_from_bot, timestamp
              FROM messages
@@ -192,7 +194,7 @@ impl Database {
     }
 
     pub fn get_all_messages(&self, chat_id: i64) -> Result<Vec<StoredMessage>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, chat_id, sender_name, content, is_from_bot, timestamp
              FROM messages
@@ -222,7 +224,7 @@ impl Database {
         max: usize,
         fallback: usize,
     ) -> Result<Vec<StoredMessage>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
 
         // Find timestamp of last bot message
         let last_bot_ts: Option<String> = conn
@@ -293,7 +295,7 @@ impl Database {
         schedule_value: &str,
         next_run: &str,
     ) -> Result<i64, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO scheduled_tasks (chat_id, prompt, schedule_type, schedule_value, next_run, status, created_at)
@@ -304,7 +306,7 @@ impl Database {
     }
 
     pub fn get_due_tasks(&self, now: &str) -> Result<Vec<ScheduledTask>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, chat_id, prompt, schedule_type, schedule_value, next_run, last_run, status, created_at
              FROM scheduled_tasks
@@ -329,7 +331,7 @@ impl Database {
     }
 
     pub fn get_tasks_for_chat(&self, chat_id: i64) -> Result<Vec<ScheduledTask>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, chat_id, prompt, schedule_type, schedule_value, next_run, last_run, status, created_at
              FROM scheduled_tasks
@@ -355,7 +357,7 @@ impl Database {
     }
 
     pub fn get_task_by_id(&self, task_id: i64) -> Result<Option<ScheduledTask>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let result = conn.query_row(
             "SELECT id, chat_id, prompt, schedule_type, schedule_value, next_run, last_run, status, created_at
              FROM scheduled_tasks
@@ -383,7 +385,7 @@ impl Database {
     }
 
     pub fn update_task_status(&self, task_id: i64, status: &str) -> Result<bool, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let rows = conn.execute(
             "UPDATE scheduled_tasks SET status = ?1 WHERE id = ?2",
             params![status, task_id],
@@ -397,7 +399,7 @@ impl Database {
         last_run: &str,
         next_run: Option<&str>,
     ) -> Result<(), MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         match next_run {
             Some(next) => {
                 conn.execute(
@@ -429,7 +431,7 @@ impl Database {
         success: bool,
         result_summary: Option<&str>,
     ) -> Result<i64, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         conn.execute(
             "INSERT INTO task_run_logs (task_id, chat_id, started_at, finished_at, duration_ms, success, result_summary)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -451,7 +453,7 @@ impl Database {
         task_id: i64,
         limit: usize,
     ) -> Result<Vec<TaskRunLog>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, task_id, chat_id, started_at, finished_at, duration_ms, success, result_summary
              FROM task_run_logs
@@ -478,7 +480,7 @@ impl Database {
 
     #[allow(dead_code)]
     pub fn delete_task(&self, task_id: i64) -> Result<bool, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let rows = conn.execute(
             "DELETE FROM scheduled_tasks WHERE id = ?1",
             params![task_id],
@@ -489,7 +491,7 @@ impl Database {
     // --- Sessions ---
 
     pub fn save_session(&self, chat_id: i64, messages_json: &str) -> Result<(), MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO sessions (chat_id, messages_json, updated_at)
@@ -503,7 +505,7 @@ impl Database {
     }
 
     pub fn load_session(&self, chat_id: i64) -> Result<Option<(String, String)>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let result = conn.query_row(
             "SELECT messages_json, updated_at FROM sessions WHERE chat_id = ?1",
             params![chat_id],
@@ -517,7 +519,7 @@ impl Database {
     }
 
     pub fn delete_session(&self, chat_id: i64) -> Result<bool, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let rows = conn.execute("DELETE FROM sessions WHERE chat_id = ?1", params![chat_id])?;
         Ok(rows > 0)
     }
@@ -525,7 +527,7 @@ impl Database {
     // --- Chat settings ---
 
     pub fn get_chat_setting(&self, chat_id: i64, key: &str) -> Result<Option<String>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let result = conn.query_row(
             "SELECT value FROM chat_settings WHERE chat_id = ?1 AND key = ?2",
             params![chat_id, key],
@@ -539,7 +541,7 @@ impl Database {
     }
 
     pub fn set_chat_setting(&self, chat_id: i64, key: &str, value: &str) -> Result<(), MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         conn.execute(
             "INSERT INTO chat_settings (chat_id, key, value)
              VALUES (?1, ?2, ?3)
@@ -549,12 +551,29 @@ impl Database {
         Ok(())
     }
 
+    /// Get the timestamp of the most recent message (from either user or bot) in a chat.
+    pub fn get_last_message_timestamp(&self, chat_id: i64) -> Result<Option<String>, MicroClawError> {
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        let mut stmt = conn.prepare(
+            "SELECT timestamp FROM messages
+             WHERE chat_id = ?1
+             ORDER BY timestamp DESC
+             LIMIT 1",
+        )?;
+        let result = stmt.query_row(params![chat_id], |row| row.get::<_, String>(0));
+        match result {
+            Ok(ts) => Ok(Some(ts)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(MicroClawError::Database(e)),
+        }
+    }
+
     pub fn get_new_user_messages_since(
         &self,
         chat_id: i64,
         since: &str,
     ) -> Result<Vec<StoredMessage>, MicroClawError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let mut stmt = conn.prepare(
             "SELECT id, chat_id, sender_name, content, is_from_bot, timestamp
              FROM messages

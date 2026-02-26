@@ -50,39 +50,48 @@ pub async fn ensure_proactive_schedules(state: &Arc<AppState>) {
 async fn ensure_for_chat(state: &Arc<AppState>, chat_id: i64) -> anyhow::Result<()> {
     let existing = state.db.get_tasks_for_chat(chat_id)?;
 
-    let has_morning = existing.iter().any(|t| t.prompt.contains(MORNING_MARKER));
-    let has_evening = existing.iter().any(|t| t.prompt.contains(EVENING_MARKER));
+    // Count existing proactive schedules (detect duplicates)
+    let morning_count = existing.iter().filter(|t| t.prompt.contains(MORNING_MARKER)).count();
+    let evening_count = existing.iter().filter(|t| t.prompt.contains(EVENING_MARKER)).count();
 
-    if has_morning && has_evening {
+    // If exactly one of each exists, nothing to do
+    if morning_count == 1 && evening_count == 1 {
         info!("Proactive schedules already exist for chat {chat_id}");
         return Ok(());
+    }
+
+    // Delete any existing proactive schedules (cleans up duplicates from race conditions)
+    for task in &existing {
+        if task.prompt.contains(MORNING_MARKER) || task.prompt.contains(EVENING_MARKER) {
+            if let Err(e) = state.db.delete_task(task.id) {
+                error!("Failed to clean up duplicate proactive schedule #{}: {e}", task.id);
+            }
+        }
     }
 
     let tz: chrono_tz::Tz = state
         .config
         .timezone
         .parse()
-        .unwrap_or(chrono_tz::Tz::UTC);
+        .unwrap_or_else(|_| {
+            tracing::warn!("Invalid timezone '{}' in config, falling back to UTC", state.config.timezone);
+            chrono_tz::Tz::UTC
+        });
 
-    if !has_morning {
-        // 9 AM daily
-        let cron_expr = "0 0 9 * * *";
-        let next_run = compute_next_run(cron_expr, tz)?;
-        state
-            .db
-            .create_scheduled_task(chat_id, MORNING_PROMPT, "cron", cron_expr, &next_run)?;
-        info!("Created morning proactive schedule for chat {chat_id}, next run: {next_run}");
-    }
+    // Always recreate both schedules (idempotent)
+    let cron_morning = "0 0 9 * * *";
+    let next_morning = compute_next_run(cron_morning, tz)?;
+    state
+        .db
+        .create_scheduled_task(chat_id, MORNING_PROMPT, "cron", cron_morning, &next_morning)?;
+    info!("Created morning proactive schedule for chat {chat_id}, next run: {next_morning}");
 
-    if !has_evening {
-        // 8 PM daily
-        let cron_expr = "0 0 20 * * *";
-        let next_run = compute_next_run(cron_expr, tz)?;
-        state
-            .db
-            .create_scheduled_task(chat_id, EVENING_PROMPT, "cron", cron_expr, &next_run)?;
-        info!("Created evening proactive schedule for chat {chat_id}, next run: {next_run}");
-    }
+    let cron_evening = "0 0 20 * * *";
+    let next_evening = compute_next_run(cron_evening, tz)?;
+    state
+        .db
+        .create_scheduled_task(chat_id, EVENING_PROMPT, "cron", cron_evening, &next_evening)?;
+    info!("Created evening proactive schedule for chat {chat_id}, next run: {next_evening}");
 
     Ok(())
 }

@@ -325,8 +325,14 @@ async fn parse_sse_stream(response: reqwest::Response) -> Result<MessagesRespons
                 // Finalize tool_use input JSON
                 if let Some(json_str) = tool_json_parts.remove(&index) {
                     if index < content_blocks.len() {
-                        if let ResponseContentBlock::ToolUse { ref mut input, .. } = content_blocks[index] {
-                            *input = serde_json::from_str(&json_str).unwrap_or_default();
+                        if let ResponseContentBlock::ToolUse { ref mut input, ref name, .. } = content_blocks[index] {
+                            match serde_json::from_str(&json_str) {
+                                Ok(parsed) => *input = parsed,
+                                Err(e) => {
+                                    tracing::error!("Malformed tool JSON for '{}': {e} (raw: {})", name, &json_str[..json_str.len().min(200)]);
+                                    *input = serde_json::json!({"__parse_error": format!("Malformed tool arguments: {e}")});
+                                }
+                            }
                         }
                     }
                 }
@@ -788,8 +794,13 @@ fn translate_oai_response(oai: OaiResponse) -> MessagesResponse {
 
     if let Some(tool_calls) = choice.message.tool_calls {
         for tc in tool_calls {
-            let input: serde_json::Value =
-                serde_json::from_str(&tc.function.arguments).unwrap_or_default();
+            let input: serde_json::Value = match serde_json::from_str(&tc.function.arguments) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    tracing::error!("Malformed OpenAI tool JSON for '{}': {e}", tc.function.name);
+                    serde_json::json!({"__parse_error": format!("Malformed tool arguments: {e}")})
+                }
+            };
             content.push(ResponseContentBlock::ToolUse {
                 id: tc.id,
                 name: tc.function.name,

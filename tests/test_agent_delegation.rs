@@ -80,7 +80,7 @@ fn test_soul_contains_orchestration() {
     let soul_content = std::fs::read_to_string("soul/SOUL.md")
         .expect("Should be able to read SOUL.md");
 
-    assert!(soul_content.contains("Work Orchestration"),
+    assert!(soul_content.to_uppercase().contains("WORK ORCHESTRATION"),
         "SOUL.md should contain Work Orchestration section");
     assert!(soul_content.contains("Zilla"),
         "SOUL.md should document Zilla agent");

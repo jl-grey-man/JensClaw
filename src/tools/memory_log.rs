@@ -2,9 +2,16 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::json;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use crate::claude::ToolDefinition;
 use super::{auth_context_from_input, schema_object, Tool, ToolResult};
+
+lazy_static::lazy_static! {
+    /// File-level lock for memory .md file appends.
+    /// Prevents concurrent log_memory calls from overwriting each other.
+    static ref MEMORY_LOG_LOCK: Mutex<()> = Mutex::new(());
+}
 
 pub struct MemoryLogTool {
     memory_dir: PathBuf,
@@ -171,14 +178,15 @@ Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_sch
             format!("\n## {}\n\n{}\n", timestamp, content)
         };
 
-        // Append to file
-        let existing = tokio::fs::read_to_string(&file_path).await.unwrap_or_default();
+        // Append to file (under lock to prevent concurrent write loss)
+        let _lock = MEMORY_LOG_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let existing = std::fs::read_to_string(&file_path).unwrap_or_default();
         let new_content = format!("{}{}", existing, entry);
-        
+
         // Get last entries BEFORE writing (to avoid borrow issues)
         let last_entries = Self::get_last_entries(&new_content, 5);
-        
-        if let Err(e) = tokio::fs::write(&file_path, new_content).await {
+
+        if let Err(e) = std::fs::write(&file_path, new_content) {
             return ToolResult::error(format!("Failed to write to memory: {}", e));
         }
 
@@ -193,7 +201,7 @@ Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_sch
         // Always include insights.md content so user preferences take effect immediately
         if category != "insights" {
             let insights_path = self.memory_dir.join("insights.md");
-            if let Ok(insights_content) = tokio::fs::read_to_string(&insights_path).await {
+            if let Ok(insights_content) = std::fs::read_to_string(&insights_path) {
                 if !insights_content.trim().is_empty() {
                     let insights_entries = Self::get_last_entries(&insights_content, 5);
                     result.push_str(&format!(

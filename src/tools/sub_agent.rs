@@ -181,6 +181,27 @@ impl Tool for SubAgentTool {
                     content: MessageContent::Blocks(tool_results),
                 });
 
+                // Compact old messages to prevent unbounded memory growth.
+                // Keep the first message (system context) and last 30 messages intact;
+                // truncate tool result content in older messages.
+                const MAX_MESSAGES: usize = 40;
+                const KEEP_RECENT: usize = 30;
+                if messages.len() > MAX_MESSAGES {
+                    let truncate_up_to = messages.len() - KEEP_RECENT;
+                    for msg in messages[1..truncate_up_to].iter_mut() {
+                        if let MessageContent::Blocks(blocks) = &mut msg.content {
+                            for block in blocks.iter_mut() {
+                                if let ContentBlock::ToolResult { content, .. } = block {
+                                    if content.len() > 100 {
+                                        content.truncate(100);
+                                        content.push_str("... [truncated]");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 continue;
             }
 

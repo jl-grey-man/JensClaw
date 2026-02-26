@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 
 use crate::activity::ActivityLogger;
@@ -11,6 +11,12 @@ use crate::claude::ToolDefinition;
 use crate::memory_decay;
 
 use super::{auth_context_from_input, schema_object, Tool, ToolResult};
+
+lazy_static::lazy_static! {
+    /// File-level lock for patterns.json read-modify-write operations.
+    /// Prevents concurrent writes from silently losing data.
+    static ref PATTERNS_LOCK: Mutex<()> = Mutex::new(());
+}
 
 /// Reject content that contains XML closing tags matching Sandy's prompt structure.
 fn validate_no_injection(text: &str) -> Result<(), String> {
@@ -386,6 +392,7 @@ impl Tool for AddObservationTool {
             return ToolResult::error(format!("⚠️ {}", e));
         }
 
+        let _lock = PATTERNS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_patterns(&self.data_dir);
 
         let pattern = match data.patterns.iter_mut().find(|p| p.id == pattern_id) {
@@ -406,6 +413,14 @@ impl Tool for AddObservationTool {
         };
 
         pattern.evidence.push(observation);
+
+        // Cap evidence to prevent unbounded growth (keep most recent 100)
+        const MAX_EVIDENCE: usize = 100;
+        if pattern.evidence.len() > MAX_EVIDENCE {
+            let drain_count = pattern.evidence.len() - MAX_EVIDENCE;
+            pattern.evidence.drain(..drain_count);
+        }
+
         pattern.observations_count = pattern.evidence.len() as i32;
         pattern.last_updated = chrono::Utc::now().to_rfc3339();
 
@@ -503,6 +518,7 @@ impl Tool for UpdateHypothesisTool {
             return ToolResult::error(format!("⚠️ {}", e));
         }
 
+        let _lock = PATTERNS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_patterns(&self.data_dir);
 
         let pattern = match data.patterns.iter_mut().find(|p| p.id == pattern_id) {
@@ -628,6 +644,7 @@ impl Tool for CreatePatternTool {
             return ToolResult::error(format!("⚠️ {}", e));
         }
 
+        let _lock = PATTERNS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut data = read_patterns(&self.data_dir);
 
         // Check if pattern already exists
