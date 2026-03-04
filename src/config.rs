@@ -55,6 +55,9 @@ fn default_compact_keep_recent() -> usize {
 fn default_context_window_messages() -> usize {
     12
 }
+fn default_memory_injection_mode() -> String {
+    "summary".into()
+}
 fn default_whatsapp_webhook_port() -> u16 {
     8080
 }
@@ -122,6 +125,8 @@ pub struct Config {
     pub compact_keep_recent: usize,
     #[serde(default = "default_context_window_messages")]
     pub context_window_messages: usize,
+    #[serde(default = "default_memory_injection_mode")]
+    pub memory_injection_mode: String,
     #[serde(default)]
     pub whatsapp_access_token: Option<String>,
     #[serde(default)]
@@ -289,6 +294,7 @@ pub(crate) mod tests {
             max_session_messages: 25,
             compact_keep_recent: 10,
             context_window_messages: 12,
+            memory_injection_mode: "summary".into(),
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,

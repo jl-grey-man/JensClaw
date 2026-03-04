@@ -19,6 +19,7 @@ fn main() {
         max_session_messages: 10,
         compact_keep_recent: 5,
         context_window_messages: 12,
+            memory_injection_mode: "summary".into(),
         data_dir: "/tmp/sandy_test".to_string(),
         working_dir: "/tmp/sandy_test".to_string(),
         timezone: "UTC".to_string(),

@@ -160,6 +160,113 @@ impl MemoryManager {
         context
     }
 
+    /// Count entries in a runtime memory file by counting `\n## ` delimiters.
+    fn count_runtime_entries(&self, filename: &str) -> usize {
+        let path = self.base_dir.join("memory").join(format!("{}.md", filename));
+        match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                let parts: Vec<&str> = content.split("\n## ").collect();
+                if parts.len() <= 1 { 0 } else { parts.len() - 1 }
+            }
+            Err(_) => 0,
+        }
+    }
+
+    /// Get the first line of the most recent entry from a memory file.
+    fn latest_entry_preview(&self, filename: &str) -> Option<String> {
+        let path = self.base_dir.join("memory").join(format!("{}.md", filename));
+        let content = std::fs::read_to_string(&path).ok()?;
+        let entries: Vec<&str> = content.split("\n## ").collect();
+        if entries.len() <= 1 {
+            return None;
+        }
+        let last = entries.last()?;
+        // Skip the timestamp line, get the content line
+        let lines: Vec<&str> = last.lines().collect();
+        let preview = if lines.len() > 1 { lines[1] } else { lines[0] };
+        let preview = preview.trim();
+        if preview.is_empty() {
+            return None;
+        }
+        let truncated = if preview.len() > 120 {
+            format!("{}...", &preview[..117])
+        } else {
+            preview.to_string()
+        };
+        Some(truncated)
+    }
+
+    /// Build a compact memory summary with counts, pattern names, and latest previews.
+    /// Used in "summary" memory_injection_mode to avoid bulk memory injection.
+    pub fn build_memory_summary(&self, chat_id: i64) -> String {
+        let mut context = String::new();
+
+        // Always inject rules (behavioral constraints)
+        if let Some(rules) = self.read_rules() {
+            context.push_str("<rules>\n");
+            context.push_str(&rules);
+            context.push_str("\n</rules>\n\n");
+        }
+
+        context.push_str("<memory_status>\n");
+        context.push_str("Your long-term memory contains:\n");
+
+        let insights_count = self.count_runtime_entries("insights");
+        let solutions_count = self.count_runtime_entries("solutions");
+        let patterns_count = self.count_runtime_entries("patterns");
+        let errors_count = self.count_runtime_entries("errors");
+
+        if insights_count > 0 {
+            let preview = self.latest_entry_preview("insights")
+                .map(|p| format!(" (latest: \"{}\")", p))
+                .unwrap_or_default();
+            context.push_str(&format!("- {} insights{}\n", insights_count, preview));
+        }
+        if solutions_count > 0 {
+            let preview = self.latest_entry_preview("solutions")
+                .map(|p| format!(" (latest: \"{}\")", p))
+                .unwrap_or_default();
+            context.push_str(&format!("- {} solutions{}\n", solutions_count, preview));
+        }
+        if patterns_count > 0 {
+            let preview = self.latest_entry_preview("patterns")
+                .map(|p| format!(" (latest: \"{}\")", p))
+                .unwrap_or_default();
+            context.push_str(&format!("- {} patterns{}\n", patterns_count, preview));
+        }
+        if errors_count > 0 {
+            let preview = self.latest_entry_preview("errors")
+                .map(|p| format!(" (latest: \"{}\")", p))
+                .unwrap_or_default();
+            context.push_str(&format!("- {} errors{}\n", errors_count, preview));
+        }
+
+        if insights_count + solutions_count + patterns_count + errors_count == 0 {
+            context.push_str("- No entries yet\n");
+        }
+
+        context.push_str("Use search_memory to recall details when relevant.\n");
+        context.push_str("</memory_status>\n\n");
+
+        // Include AGENTS.md memories (global + chat-specific) in summary mode too
+        if let Some(global) = self.read_global_memory() {
+            if !global.trim().is_empty() {
+                context.push_str("<global_memory>\n");
+                context.push_str(&sanitize_xml(&global));
+                context.push_str("\n</global_memory>\n\n");
+            }
+        }
+        if let Some(chat) = self.read_chat_memory(chat_id) {
+            if !chat.trim().is_empty() {
+                context.push_str("<chat_memory>\n");
+                context.push_str(&sanitize_xml(&chat));
+                context.push_str("\n</chat_memory>\n\n");
+            }
+        }
+
+        context
+    }
+
     #[allow(dead_code)]
     pub fn groups_dir(&self) -> &Path {
         &self.groups_dir
@@ -323,6 +430,92 @@ mod tests {
         std::fs::create_dir_all(&memory_dir).unwrap();
         std::fs::write(memory_dir.join("rules.md"), "  \n  ").unwrap();
         assert!(mm.read_rules().is_none());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_count_runtime_entries() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(
+            memory_dir.join("insights.md"),
+            "# Insights\n\n## 2024-01-01\nFirst insight\n\n## 2024-01-02\nSecond insight",
+        )
+        .unwrap();
+        assert_eq!(mm.count_runtime_entries("insights"), 2);
+        assert_eq!(mm.count_runtime_entries("solutions"), 0);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_latest_entry_preview() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(
+            memory_dir.join("solutions.md"),
+            "# Solutions\n\n## 2024-01-01\nOld solution\n\n## 2024-01-02\nLatest fix for scheduler",
+        )
+        .unwrap();
+        let preview = mm.latest_entry_preview("solutions").unwrap();
+        assert!(preview.contains("Latest fix for scheduler"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_build_memory_summary_includes_rules() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("rules.md"), "No asterisks").unwrap();
+        let summary = mm.build_memory_summary(100);
+        assert!(summary.contains("<rules>"));
+        assert!(summary.contains("No asterisks"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_build_memory_summary_counts() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(
+            memory_dir.join("insights.md"),
+            "# Insights\n\n## 2024-01-01\nInsight one\n\n## 2024-01-02\nInsight two\n\n## 2024-01-03\nInsight three",
+        ).unwrap();
+        std::fs::write(
+            memory_dir.join("errors.md"),
+            "# Errors\n\n## 2024-01-01\nSome error",
+        ).unwrap();
+        let summary = mm.build_memory_summary(100);
+        assert!(summary.contains("3 insights"));
+        assert!(summary.contains("1 errors"));
+        assert!(summary.contains("search_memory"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_build_memory_summary_excludes_full_content() {
+        let (mm, dir) = test_memory_manager();
+        let memory_dir = dir.join("memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(
+            memory_dir.join("insights.md"),
+            "# Insights\n\n## 2024-01-01\nThis is a very detailed insight with lots of specific information that should not appear in full",
+        ).unwrap();
+        let summary = mm.build_memory_summary(100);
+        // Summary should have the preview but NOT the <recent_insights> bulk injection
+        assert!(!summary.contains("<recent_insights>"));
+        assert!(summary.contains("<memory_status>"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn test_build_memory_summary_empty_memory() {
+        let (mm, dir) = test_memory_manager();
+        let summary = mm.build_memory_summary(100);
+        assert!(summary.contains("No entries yet"));
         cleanup(&dir);
     }
 }

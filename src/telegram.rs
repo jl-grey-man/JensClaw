@@ -795,8 +795,16 @@ pub async fn process_with_claude_mode(
     };
 
     // Build system prompt
-    let memory_context = state.memory.build_memory_context(chat_id);
-    let rules_content = state.memory.read_rules();
+    let memory_context = if state.config.memory_injection_mode == "full" {
+        state.memory.build_memory_context(chat_id)
+    } else {
+        state.memory.build_memory_summary(chat_id)
+    };
+    let rules_content = if state.config.memory_injection_mode == "full" {
+        state.memory.read_rules()
+    } else {
+        None // rules already included in build_memory_summary
+    };
 
     let (soul_content, identity_content, skills_catalog);
     if prompt_mode == PromptMode::Full {
