@@ -14,15 +14,15 @@ fn minimal_config() -> Config {
         max_tokens: 8192,
         max_tool_iterations: 25,
         max_sub_agent_iterations: 25,
-        max_history_messages: 10,
+        max_history_messages: 20,
         data_dir: "./sandy.data".into(),
         working_dir: "./tmp".into(),
         openai_api_key: None,
         timezone: "UTC".into(),
         allowed_groups: vec![],
         control_chat_ids: vec![],
-        max_session_messages: 25,
-        compact_keep_recent: 10,
+        max_session_messages: 40,
+        compact_keep_recent: 15,
         context_window_messages: 12,
             memory_injection_mode: "summary".into(),
         whatsapp_access_token: None,
@@ -51,11 +51,11 @@ fn test_yaml_parse_minimal() {
     // Defaults
     assert_eq!(config.llm_provider, "anthropic");
     assert_eq!(config.max_tokens, 8192);
-    assert_eq!(config.max_tool_iterations, 100);
-    assert_eq!(config.max_history_messages, 10);
+    assert_eq!(config.max_tool_iterations, 25);
+    assert_eq!(config.max_history_messages, 20);
     assert_eq!(config.timezone, "UTC");
-    assert_eq!(config.max_session_messages, 25);
-    assert_eq!(config.compact_keep_recent, 10);
+    assert_eq!(config.max_session_messages, 40);
+    assert_eq!(config.compact_keep_recent, 15);
     assert_eq!(config.whatsapp_webhook_port, 8080);
 }
 
@@ -70,7 +70,7 @@ model: gpt-4o
 llm_base_url: https://custom.api.com/v1
 max_tokens: 4096
 max_tool_iterations: 10
-max_history_messages: 100
+max_history_messages: 200
 data_dir: /data/microclaw
 working_dir: /data/microclaw/tmp
 openai_api_key: sk-whisper
@@ -101,7 +101,7 @@ discord_allowed_channels:
     );
     assert_eq!(config.max_tokens, 4096);
     assert_eq!(config.max_tool_iterations, 10);
-    assert_eq!(config.max_history_messages, 100);
+    assert_eq!(config.max_history_messages, 200);
     assert_eq!(config.data_dir, "/data/microclaw");
     assert_eq!(config.working_dir, "/data/microclaw/tmp");
     assert_eq!(config.openai_api_key.as_deref(), Some("sk-whisper"));

@@ -21,13 +21,13 @@ fn default_max_tokens() -> u32 {
     8192
 }
 fn default_max_tool_iterations() -> usize {
-    100
+    25
 }
 fn default_max_sub_agent_iterations() -> usize {
     25
 }
 fn default_max_history_messages() -> usize {
-    10
+    20
 }
 fn default_data_dir() -> String {
     // Use XDG data directory or fallback to ~/.local/share/sandy
@@ -47,10 +47,10 @@ fn default_timezone() -> String {
     "UTC".into()
 }
 fn default_max_session_messages() -> usize {
-    25
+    40
 }
 fn default_compact_keep_recent() -> usize {
-    10
+    15
 }
 fn default_context_window_messages() -> usize {
     12
@@ -282,17 +282,17 @@ pub(crate) mod tests {
             model: "claude-sonnet-4-5-20250929".into(),
             llm_base_url: None,
             max_tokens: 8192,
-            max_tool_iterations: 100,
+            max_tool_iterations: 25,
             max_sub_agent_iterations: 25,
-            max_history_messages: 10,
+            max_history_messages: 20,
             data_dir: "./sandy.data".into(),
             working_dir: "./tmp".into(),
             openai_api_key: None,
             timezone: "UTC".into(),
             allowed_groups: vec![],
             control_chat_ids: vec![],
-            max_session_messages: 25,
-            compact_keep_recent: 10,
+            max_session_messages: 40,
+            compact_keep_recent: 15,
             context_window_messages: 12,
             memory_injection_mode: "summary".into(),
             whatsapp_access_token: None,
@@ -317,14 +317,14 @@ pub(crate) mod tests {
         let cloned = config.clone();
         assert_eq!(cloned.telegram_bot_token, "tok");
         assert_eq!(cloned.max_tokens, 8192);
-        assert_eq!(cloned.max_tool_iterations, 100);
-        assert_eq!(cloned.max_history_messages, 10);
+        assert_eq!(cloned.max_tool_iterations, 25);
+        assert_eq!(cloned.max_history_messages, 20);
         assert!(cloned.openai_api_key.is_none());
         assert_eq!(cloned.timezone, "UTC");
         assert!(cloned.allowed_groups.is_empty());
         assert!(cloned.control_chat_ids.is_empty());
-        assert_eq!(cloned.max_session_messages, 25);
-        assert_eq!(cloned.compact_keep_recent, 10);
+        assert_eq!(cloned.max_session_messages, 40);
+        assert_eq!(cloned.compact_keep_recent, 15);
         assert!(cloned.discord_bot_token.is_none());
         assert!(cloned.discord_allowed_channels.is_empty());
         let _ = format!("{:?}", config);
@@ -362,7 +362,7 @@ pub(crate) mod tests {
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.llm_provider, "anthropic");
         assert_eq!(config.max_tokens, 8192);
-        assert_eq!(config.max_tool_iterations, 100);
+        assert_eq!(config.max_tool_iterations, 25);
         assert_eq!(config.data_dir, default_data_dir());
         assert_eq!(config.working_dir, default_working_dir());
         assert_eq!(config.timezone, "UTC");

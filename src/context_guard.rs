@@ -1,4 +1,4 @@
-use crate::claude::{ContentBlock, Message, MessageContent};
+use crate::claude::{ContentBlock, Message, MessageContent, ToolDefinition};
 
 /// Approximate token count using ~4 chars per token heuristic.
 pub fn estimate_tokens(messages: &[Message]) -> usize {
@@ -48,6 +48,33 @@ pub fn check_context(messages: &[Message], max_context_tokens: usize) -> Context
     } else {
         ContextStatus::Ok
     }
+}
+
+/// Estimate tokens for a system prompt string.
+pub fn estimate_system_tokens(system: &str) -> usize {
+    system.len() / 4
+}
+
+/// Estimate tokens for tool definitions by serializing to JSON.
+pub fn estimate_tool_tokens(tools: &[ToolDefinition]) -> usize {
+    let total_chars: usize = tools
+        .iter()
+        .map(|t| t.name.len() + t.description.len() + t.input_schema.to_string().len())
+        .sum();
+    total_chars / 4
+}
+
+/// Log token budget breakdown for observability.
+/// Called on the first LLM iteration per user message.
+pub fn log_token_budget(system_tokens: usize, tool_tokens: usize, message_tokens: usize) {
+    let total = system_tokens + tool_tokens + message_tokens;
+    tracing::info!(
+        "token_budget system={} tools={} messages={} total={}",
+        system_tokens,
+        tool_tokens,
+        message_tokens,
+        total
+    );
 }
 
 /// Emergency trim: keep only the most recent N messages.
@@ -164,5 +191,43 @@ mod tests {
         let messages = vec![text_msg("user", "hello")];
         let trimmed = emergency_trim(&messages, 5);
         assert_eq!(trimmed.len(), 1);
+    }
+
+    #[test]
+    fn test_estimate_system_tokens() {
+        // 400 chars / 4 = 100 tokens
+        let system = "a".repeat(400);
+        assert_eq!(estimate_system_tokens(&system), 100);
+    }
+
+    #[test]
+    fn test_estimate_system_tokens_empty() {
+        assert_eq!(estimate_system_tokens(""), 0);
+    }
+
+    #[test]
+    fn test_estimate_tool_tokens() {
+        let tools = vec![
+            ToolDefinition {
+                name: "bash".into(),                              // 4 chars
+                description: "Execute a bash command.".into(),    // 22 chars
+                input_schema: serde_json::json!({"type": "object", "properties": {"cmd": {"type": "string"}}}),
+            },
+        ];
+        let tokens = estimate_tool_tokens(&tools);
+        // name(4) + description(22) + schema JSON string length, all / 4
+        assert!(tokens > 0);
+    }
+
+    #[test]
+    fn test_estimate_tool_tokens_empty() {
+        assert_eq!(estimate_tool_tokens(&[]), 0);
+    }
+
+    #[test]
+    fn test_log_token_budget_does_not_panic() {
+        // Just verify it doesn't panic — actual log output goes to tracing
+        log_token_budget(1000, 500, 2000);
+        log_token_budget(0, 0, 0);
     }
 }

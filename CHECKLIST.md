@@ -40,6 +40,7 @@
 - [x] Fixed: Activity log not updating in Web UI
 - [x] Fixed: Watchdog logs in wrong directory
 - [x] Fixed: Config file naming (supports `sandy.config.yaml`)
+- [x] Fixed: sandy-updater.sh failing every 5 min — added cargo PATH export, fixed update detection to use `rev-list` instead of hash comparison (was false-positive when local ahead of remote) (March 2, 2026)
 
 ### API Cost Optimization
 - [x] Anthropic prompt caching via `cache_control` on static system prompt
@@ -205,6 +206,16 @@
 - [ ] Task deadline reminders based on due dates
 - [ ] Pattern-based suggestions ("You have high energy mornings — tackle hard tasks now")
 - [ ] Unprompted accountability ("You said you'd exercise 3x this week — how's that going?")
+
+---
+
+### LLM Resilience — Auto-Discovery Improvements ⏳ PENDING
+
+- [ ] Cache discovered model for the session (avoid re-querying `/models` on every message)
+- [ ] Persist discovered model to config so it survives restarts
+- [ ] Notify user via Telegram when a fallback/discovered model is being used
+- [ ] Distinguish 402 (out of credits) from 404 (model gone) — auto-discovery can't fix billing
+- [ ] Add OpenRouter credit balance check on startup (warn if low)
 
 ---
 

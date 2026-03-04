@@ -70,5 +70,13 @@
     "item_id": "7",
     "item_name": "Ask Björn about the iPods",
     "details": "Scheduled for: 2026-02-21T08:00:00+00:00"
+  },
+  {
+    "timestamp": "2026-03-01T15:39:14.034890065Z",
+    "action": "created",
+    "item_type": "reminder",
+    "item_id": "8",
+    "item_name": "[proactive:morning] You are Sandy, sending a proac...",
+    "details": "Scheduled for: 2026-03-02T09:00:00+01:00"
   }
 ]

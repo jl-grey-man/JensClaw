@@ -1,10 +1,80 @@
 # CLAUDE.md - Sandy Development Guide
 
+# Rules
+
+## Never break what works
+- Run the FULL test suite before AND after every change — not just the tests you think are related
+- If any test fails after your change, revert and fix before proceeding
+- Never modify code you weren't asked to touch
+- Never refactor, "improve", or clean up adjacent code while working on something else
+- Check that the application still starts/builds after every change
+
+## Atomic changes only
+- One logical change per commit
+- Every commit must leave the project in a working state (tests green, app builds)
+- If a change touches multiple files, they all go in one commit — but the change itself stays minimal
+- No "while I'm here" fixes — make a separate commit or note it for later
+
+## Documentation is not optional
+- If you change behavior, update the docs in the SAME commit (not "later")
+- This file (CLAUDE.md) is the source of truth — if code contradicts it, the code is wrong
+- New pattern or convention? Document it here BEFORE using it
+- Removing a feature? Remove its documentation in the same commit
+- Added a new dependency? Update CLAUDE.md
+- Added or changed commands/scripts? Update CLAUDE.md
+- Changed directory structure or moved files? Update CLAUDE.md
+- New environment variables required? Update CLAUDE.md
+- Discovered a fragile area? Add it to the Fragile section
+
+## Don't guess, ask
+- Ambiguous requirements → ask before implementing
+- Unsure if a change will break something → say so
+- Unfamiliar with a pattern in the codebase → read it first, don't assume
+- Never assume "this is probably fine"
+
+## Test discipline
+- New code = new tests (same commit)
+- Changed behavior = updated tests (same commit)
+- Tests must verify behavior, not just cover lines
+- If the project has no tests yet, add them for any new code you write
+
+## Failure is an option
+- If you don't know how to fix something, SAY SO — don't fake a solution
+- "I don't know" is always better than a wrong fix that hides the real problem
+- Never paper over errors with try/catch, silent fallbacks, or suppressed warnings
+- If a fix feels like guesswork, stop and explain what you've tried and where you're stuck
+
+## Diagnose before you fix
+- Never start changing code until you understand WHY it's broken
+- Read the error, trace the code path, check the logs — then fix
+- Don't throw code at the problem hoping something sticks
+- If your first fix didn't work, stop and re-analyze — don't try a second guess
+- "I changed 5 things and now it works" means you don't know what fixed it — revert and do it properly
+
+## No shortcuts, no quickfixes
+- Every fix must be a proper fix — no hacks, workarounds, or "temporary" solutions
+- If doing it properly takes longer, that's fine — stability beats speed
+- Never disable a check, skip validation, or comment out code to make something work
+- If the proper fix is too complex for the current scope, say so instead of hacking around it
+
+## Respect the Fragile section
+- Before changing ANY code, check the Fragile section below for warnings about that area
+- If your change touches a fragile area, take extra care and test more thoroughly
+- If you discover a new fragile area (tight coupling, brittle integration, non-obvious dependency), add it to the Fragile section
+
+## Task tracking belongs in Checklist.md
+- Never put todos, progress tracking, or phase status in CLAUDE.md
+- Use Checklist.md for all task tracking — it's the living progress doc
+- Check off items as you complete them
+- When starting a new phase or big task, update the checklist first
+
+---
+
 ## What Is Sandy?
 
 Sandy is an ADHD coach and personal assistant Telegram bot built in Rust. She helps neurodivergent users manage tasks, track goals, learn behavioral patterns, and stay accountable. Sandy is an **orchestrator** — she delegates research/writing to specialized agents (Zilla, Gonza) and handles coaching, pattern analysis, and task management directly.
 
-Runs on a Raspberry Pi 5 at `/home/jens/sandy`.
+Runs on a Raspberry Pi 5 at `/home/jens/sandy`. Build artifacts, logs, and cargo registry live on SSD via symlinks (see Infrastructure below).
 
 ## Tech Stack
 
@@ -149,9 +219,14 @@ cargo test -- --nocapture # With stdout
 Main config: `config/sandy.config.yaml` (gitignored). Copy from `.example`.
 
 Key config values:
-- `data_dir`: defaults to XDG path (`~/.local/share/sandy`), NOT `./sandy.data`
-- `working_dir`: defaults to `/tmp/sandy_work`, NOT `./tmp`
-- `telegram_token`, `claude_api_key`, `openai_api_key`
+- `data_dir`: defaults to XDG path (`~/.local/share/sandy`), NOT `./sandy.data`. Production config overrides to `./soul/data`
+- `working_dir`: defaults to `/tmp/sandy_work`, NOT `./tmp`. Production config overrides to `./storage`
+- `telegram_bot_token`, `api_key` (OpenRouter), `openai_api_key` (Whisper)
+
+LLM model config:
+- `model`: primary model (e.g. `anthropic/claude-sonnet-4.5`)
+- `fallback_models`: list of models to try if primary fails (e.g. `anthropic/claude-3.7-sonnet`, `anthropic/claude-haiku-4.5`)
+- **Auto-discovery failsafe**: if ALL configured models fail with 404/400, Sandy queries OpenRouter's `/models` endpoint and automatically picks the best available Claude model. This prevents total outage when model IDs are deprecated.
 
 ### Deploy
 
@@ -160,16 +235,34 @@ sudo systemctl restart sandy
 journalctl -u sandy -f        # Follow logs
 ```
 
-Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and restarts every 5 minutes.
+Auto-updater: systemd timer (`sandy-updater.timer`) triggers `scripts/sandy-updater.sh` every 5 minutes (oneshot — checks once and exits). The script exports `$HOME/.cargo/bin` to PATH (systemd doesn't load shell profiles) and uses `git rev-list HEAD..origin/main --count` for update detection (correctly handles local-ahead scenarios). The old `scripts/auto-update.sh` is legacy (infinite loop, unused).
+
+### Infrastructure — SD Card + SSD
+
+The Pi has a small SD card (29G) and an SSD at `/mnt/storage` (916G). Heavy directories are symlinked to SSD:
+
+| Symlink | Target | Purpose |
+|---|---|---|
+| `/home/jens/sandy/target` | `/mnt/storage/sandy/target` | Build artifacts (~7G) |
+| `/home/jens/sandy/logs` | `/mnt/storage/sandy/logs` | Service logs |
+| `/home/jens/.cargo/registry` | `/mnt/storage/cargo-registry` | Crate cache |
+
+**CRITICAL:** The systemd service (`sandy.service`) has `Restart=always` and `ExecStart` resolves through the target symlink. If the symlink breaks or the SSD is unmounted, Sandy enters a restart loop. Always ensure the symlink target exists before restarting.
+
+**Never delete `target/` while Sandy is running** — stop the service first, then make changes, then restart.
 
 ### Key Conventions
 
 - **Atomic file I/O:** Always use `atomic_io::write_atomic()` for data files, never raw `fs::write()`
+- **File locking:** All read-modify-write on JSON/md data files must hold the appropriate static Mutex: `TRACKING_LOCK` (tracking.rs), `PATTERNS_LOCK` (patterns.rs), `MEMORY_LOG_LOCK` (memory_log.rs). Acquire lock before read, hold through write.
 - **Auth key:** Tests must use `"__sandy_auth"` (renamed from `__microclaw_auth`)
 - **Path security:** All file tools validate paths against allowed roots before I/O
 - **Tool filter:** Sub-agents use `ToolRegistry::new_sub_agent()` with restricted tool lists
 - **Memory verification:** Solutions logged to memory must include `verification` field with proof
 - **No direct web access:** Sandy delegates research to Zilla agent, writing to Gonza agent
+- **DB mutex recovery:** Use `.lock().unwrap_or_else(|e| e.into_inner())` on db.rs, never bare `.unwrap()`
+- **Error logging:** Never `let _ =` on DB writes (`save_session`, `store_message`). Always log errors with `tracing::error!`
+- **Soul file formatting:** No asterisks in soul/SOUL.md, soul/AGENTS.md, soul/IDENTITY.md. Use ALL CAPS headers, plain text, [Brackets] for emphasis, dashes for lists.
 
 ## Known Test Failures
 
@@ -184,22 +277,18 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - **Hook injection escaping:** Memory context injected into sub-agent tasks via `MemoryInjectHook` is XML-escaped
 - **Input validation:** Memory writes reject content >5000 chars, pattern fields >1000 chars, notes >2000 chars. Content containing XML closing tags matching prompt structure (e.g., `</recent_solutions>`) is rejected.
 
-## Recent Changes
+## Concurrency & Resilience Model
 
-### Scheduler Conversation Awareness
-- `scheduler.rs`: `build_context_aware_prompt()` checks last message timestamp before firing tasks. If conversation active (<5 min), prepends context note telling LLM not to greet. If recent (<30 min), tells LLM to keep it casual.
-- `db.rs`: Added `get_last_message_timestamp(chat_id)` method.
-
-### Soul File Formatting (No Asterisks)
-- `soul/SOUL.md`, `soul/AGENTS.md`, `soul/IDENTITY.md`: Removed all `**bold**` and `_italic_` markdown formatting. Replaced with ALL CAPS headers, plain text, [Brackets] for emphasis, dashes for lists. Matches formatting rules in `rules.md`.
-
-### Memory Security (previous session)
-- `memory.rs`: All memory content XML-escaped via `sanitize_xml()` before prompt injection
-- `tools/mod.rs`: `authorize_chat_access()` is fail-closed (missing auth = denied)
-- `tools/patterns.rs`, `tracking.rs`, `memory_log.rs`: Auth required on all write tools
-- `tools/patterns.rs`: Confidence lock requires control chat
-- `hooks/memory_inject.rs`: Memory context XML-escaped before sub-agent injection
-- Input validation: max length limits + forbidden XML tag rejection on memory/pattern/tracking writes
+- **File locking:** `tracking.json` (6 write tools), `patterns.json` (3 write tools), and memory `.md` files (log_memory) are protected by static `Mutex<()>` locks (`TRACKING_LOCK`, `PATTERNS_LOCK`, `MEMORY_LOG_LOCK`). Lock is acquired before read, held through write. Read-only callers (e.g., `build_memory_summary`) don't need the lock — they read atomic snapshots from the last rename.
+- **DB mutex poison recovery:** All `db.rs` methods use `.lock().unwrap_or_else(|e| e.into_inner())` to recover from poisoned mutex instead of cascading panics.
+- **Error visibility:** All DB write operations in `telegram.rs` (`save_session`, `store_message`) log errors via `tracing::error!` instead of silently discarding with `let _ =`.
+- **LLM tool arg safety:** Malformed JSON from LLM SSE streams is caught explicitly, logged, and replaced with a `{"__parse_error": "..."}` object instead of silently becoming `null`.
+- **Sub-agent message cap:** After 40 messages, old tool result content is truncated to 100 chars. Last 30 messages kept intact.
+- **Pattern evidence cap:** Capped at 100 observations per pattern (oldest removed on overflow).
+- **WAL checkpoint:** `PRAGMA wal_checkpoint(TRUNCATE)` runs on DB startup to prevent unbounded WAL growth.
+- **Timezone validation:** Invalid timezone in config logs `tracing::warn!` before falling back to UTC (in `scheduler.rs` and `proactive.rs`).
+- **Proactive schedule idempotency:** `ensure_for_chat` deletes existing proactive tasks before recreating, preventing duplicates from race conditions or rapid restarts.
+- **Scheduler conversation awareness:** `build_context_aware_prompt()` checks last message timestamp. If conversation active (<5 min), tells LLM not to greet fresh. If recent (<30 min), tells LLM to keep it casual.
 
 ## Tech Debt & Fragilities
 
@@ -210,6 +299,8 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - Conversation logs accumulate without rotation
 - `patterns.json` schema has been reworked multiple times; old entries may have stale fields
 - WhatsApp and Discord integrations are experimental/incomplete
+- `scripts/auto-update.sh` is legacy (infinite loop daemon); replaced by `scripts/sandy-updater.sh` (single-run for systemd timer)
+- `sandy-updater.service` references `sandy-updater.sh` — this file must exist or the timer silently fails
 
 ## Known Fragilities (from red-team analysis)
 
@@ -233,3 +324,4 @@ Auto-updater: systemd timer (`scripts/sandy-updater.timer`) pulls, builds, and r
 - Memory entry splitting uses `"\n## "` delimiter — breaks if entry body contains markdown headers
 - Duplicate proactive schedules: FIXED — `ensure_for_chat` now deletes existing proactive tasks before recreating (idempotent)
 - Timezone fallback: FIXED — now logs `tracing::warn!` before falling back to UTC
+- **Model auto-discovery (partial):** `llm.rs` queries OpenRouter `/models` when all configured models fail, but only as a last resort. Could be improved: (1) cache the discovered model for the session instead of re-querying each time, (2) persist discovered model to config so it survives restarts, (3) notify the user via Telegram when a fallback model is being used, (4) handle 402 (out of credits) distinctly from 404 (model gone) — currently auto-discovery triggers on both but can't fix a billing issue

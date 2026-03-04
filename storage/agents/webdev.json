@@ -1,0 +1,19 @@
+{
+  "constraints": [
+    "CANNOT modify system files or configuration",
+    "MUST save all output to specified files",
+    "MUST report errors to output files, not just log them"
+  ],
+  "created_at": "2026-03-02T10:12:13.807387055+00:00",
+  "description": "Specialized agent for web developer - creates interactive html/css/js pages",
+  "id": "webdev",
+  "name": "WebDev",
+  "output_format": "structured_json",
+  "role": "Web Developer - Creates interactive HTML/CSS/JS pages",
+  "tools": [
+    "read_file",
+    "write_file",
+    "bash"
+  ],
+  "version": "1.0"
+}
