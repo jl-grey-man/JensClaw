@@ -125,7 +125,7 @@ impl Tool for TodoWriteTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "todo_write".into(),
-            description: "Write/update the todo list for this chat. Replaces the entire list. Use this to create a plan, update task statuses, or reorganize tasks. Each task has a 'task' (description) and 'status' (pending, in_progress, or completed).".into(),
+            description: "Replace the entire todo list for this chat. Each item needs 'task' and 'status' (pending/in_progress/completed).".into(),
             input_schema: schema_object(
                 json!({
                     "chat_id": {

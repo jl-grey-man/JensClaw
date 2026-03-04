@@ -40,7 +40,7 @@ impl Tool for SubAgentTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "sub_agent".into(),
-            description: "Delegate a self-contained sub-task to a parallel agent. The sub-agent has access to bash, file operations, glob, grep, web search, web fetch, and read_memory tools but cannot send messages, write memory, or manage scheduled tasks. Use this for independent research, file analysis, or coding tasks that don't need to interact with the user directly.".into(),
+            description: "Delegate a sub-task to a parallel agent with restricted tools (bash, files, search, read_memory). Cannot send messages or write memory.".into(),
             input_schema: schema_object(
                 json!({
                     "task": {

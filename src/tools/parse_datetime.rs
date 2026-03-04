@@ -164,7 +164,7 @@ impl Tool for ParseDateTimeTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "parse_datetime".into(),
-            description: "Convert natural language date/time to ISO 8601 format. Use this when scheduling tasks to ensure correct timestamp format. Supports: 'tomorrow at 13:30', 'in 5 minutes', 'in 2 hours', 'next Monday at 9am', 'today at 3pm'".into(),
+            description: "Convert natural language date/time to ISO 8601. Supports relative times, day names, and 12/24h formats.".into(),
             input_schema: schema_object(
                 json!({
                     "input": {

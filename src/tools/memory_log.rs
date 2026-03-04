@@ -51,17 +51,7 @@ impl Tool for MemoryLogTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "log_memory".into(),
-            description: "Record learnings to long-term memory. Use this to remember solutions, patterns, errors, or insights that should persist across sessions. This APPENDS to memory files with timestamps.
-
-⚠️ CRITICAL GUARDRAILS:
-1. ONLY log solutions AFTER verifying they work
-2. NEVER log assumptions or guesses
-3. Include evidence/proof in the content
-4. Be specific: include file paths, commands, error messages
-5. If unsure, test first, log second
-
-Example BAD log: 'Fixed the scheduler'
-Example GOOD log: 'Fixed scheduler by updating AGENTS.md line 25 to use list_scheduled_tasks instead of list_tasks. Verified with: sudo systemctl status sandy shows Running'".into(),
+            description: "Append to long-term memory with timestamp. Categories: solutions (MUST include verification proof), errors, patterns, insights. Be specific — no vague entries.".into(),
             input_schema: schema_object(
                 json!({
                     "category": {

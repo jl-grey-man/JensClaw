@@ -137,7 +137,7 @@ impl Tool for MemorySearchTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "search_memory".into(),
-            description: "Search past memories, solutions, and error patterns using BM25 ranking with temporal decay. Use this BEFORE attempting to solve a problem to see if you've solved it before. Recent memories are ranked higher than old ones.".into(),
+            description: "Search memories and solutions via BM25 with temporal decay. Use BEFORE problem-solving to check for past solutions.".into(),
             input_schema: schema_object(
                 json!({
                     "query": {

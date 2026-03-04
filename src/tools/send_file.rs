@@ -26,7 +26,7 @@ impl Tool for SendFileTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "send_file".into(),
-            description: "Send a file to the user via Telegram. Use this to share research results, articles, or any output files with the user. The file will be sent as a document attachment.".into(),
+            description: "Send a file as a Telegram document attachment to the specified chat.".into(),
             input_schema: schema_object(
                 json!({
                     "chat_id": {

@@ -40,32 +40,7 @@ impl Tool for BrowserTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "browser".into(),
-            description: "Headless browser automation via agent-browser CLI. Browser state (cookies, localStorage, login sessions) persists across calls and across conversations.\n\n\
-                ## Basic workflow\n\
-                1. `open <url>` — navigate to a URL\n\
-                2. `snapshot -i` — get interactive elements with refs (@e1, @e2, ...)\n\
-                3. `click @e1` / `fill @e2 \"text\"` — interact with elements\n\
-                4. `get text @e3` — extract text content\n\
-                5. Always run `snapshot -i` after navigation or interaction to see updated state\n\n\
-                ## All available commands\n\
-                **Navigation**: open, back, forward, reload, close\n\
-                **Interaction**: click, dblclick, fill, type, press, hover, select, check, uncheck, upload, drag\n\
-                **Scrolling**: scroll <dir> [px], scrollintoview <sel>\n\
-                **Data extraction**: get text/html/value/attr/title/url/count/box <sel>\n\
-                **State checks**: is visible/enabled/checked <sel>\n\
-                **Snapshot**: snapshot (-i for interactive only, -c for compact)\n\
-                **Screenshot/PDF**: screenshot [path] (--full for full page), pdf <path>\n\
-                **JavaScript**: eval <js>\n\
-                **Cookies**: cookies, cookies set <name> <val>, cookies clear\n\
-                **Storage**: storage local [key], storage local set <k> <v>, storage local clear (same for session)\n\
-                **Tabs**: tab, tab new [url], tab <n>, tab close [n]\n\
-                **Frames**: frame <sel>, frame main\n\
-                **Dialogs**: dialog accept [text], dialog dismiss\n\
-                **Viewport**: set viewport <w> <h>, set device <name>, set media dark/light\n\
-                **Network**: network route <url> [--abort|--body <json>], network requests\n\
-                **Wait**: wait <sel|ms|--text|--url|--load|--fn>\n\
-                **Auth state**: state save <path>, state load <path>\n\
-                **Semantic find**: find role/text/label/placeholder <value> <action> [input]".into(),
+            description: "Headless browser via agent-browser CLI. State persists across calls. Workflow: open <url>, snapshot -i, click/fill @ref, get text @ref. Run snapshot -i after each action.".into(),
             input_schema: schema_object(
                 json!({
                     "command": {
@@ -172,9 +147,7 @@ mod tests {
         let def = tool.definition();
         assert_eq!(def.name, "browser");
         assert!(def.description.contains("agent-browser"));
-        assert!(def.description.contains("cookies"));
-        assert!(def.description.contains("eval"));
-        assert!(def.description.contains("pdf"));
+        assert!(def.description.contains("snapshot"));
         assert!(def.input_schema["properties"]["command"].is_object());
         assert!(def.input_schema["properties"]["timeout_secs"].is_object());
     }

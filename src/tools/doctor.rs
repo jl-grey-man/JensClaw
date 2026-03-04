@@ -319,7 +319,7 @@ impl Tool for DoctorTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "doctor".into(),
-            description: "Run system diagnostics to check for configuration issues, invalid tool references, and database integrity. Use auto_fix=true to attempt automatic repairs of common issues (missing directories, corrupt files).".into(),
+            description: "Run system diagnostics: config, tool references, DB integrity. Set auto_fix=true to repair common issues.".into(),
             input_schema: schema_object(
                 json!({
                     "auto_fix": {

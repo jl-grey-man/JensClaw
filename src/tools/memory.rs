@@ -103,7 +103,7 @@ impl Tool for WriteMemoryTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "write_memory".into(),
-            description: "Write to the AGENTS.md memory file. Use this to remember important information about the user or conversation. Use scope 'global' for memories shared across all chats, or 'chat' for chat-specific memories.".into(),
+            description: "Write to AGENTS.md memory file. Scope 'global' for cross-chat, 'chat' for chat-specific. Replaces existing content.".into(),
             input_schema: schema_object(
                 json!({
                     "scope": {

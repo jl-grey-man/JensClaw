@@ -24,7 +24,7 @@ impl Tool for SendMessageTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "send_message".into(),
-            description: "Send a message to a Telegram chat mid-conversation. Use this when you want to send intermediate updates, progress reports, or multiple messages before your final response.".into(),
+            description: "Send a text message to a Telegram chat. Use for intermediate updates or multi-message responses.".into(),
             input_schema: schema_object(
                 json!({
                     "chat_id": {

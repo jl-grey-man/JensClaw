@@ -333,7 +333,7 @@ impl Tool for AddObservationTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "add_observation".into(),
-            description: "Add an observation to a pattern category. Record what you learned about the user's behavior. The observation will be stored with a timestamp and context. If the pattern doesn't exist, suggest creating it first.".into(),
+            description: "Add a timestamped behavioral observation to an existing pattern. Create the pattern first if it doesn't exist.".into(),
             input_schema: schema_object(
                 json!({
                     "pattern_id": {

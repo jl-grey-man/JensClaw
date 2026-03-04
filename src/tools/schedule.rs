@@ -182,20 +182,7 @@ impl Tool for ScheduleTaskTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "schedule_task".into(),
-            description: r#"Schedule a recurring or one-time reminder/task. IMPORTANT: If the user gives an unclear time reference (like "later", "soon", "in a while"), you MUST ask for clarification before calling this tool. Do not guess!
-
-Supported time formats:
-- "in X minutes/hours/days" (e.g., "in 5 minutes", "in 2 hours", "in 30m", "in 1 day")
-- "tomorrow at HH:MM" (e.g., "tomorrow at 14:00", "tomorrow at 9am")
-- Day names: "Monday", "Tuesday", etc. (schedules for the next occurrence of that day)
-- "today at HH:MM" (e.g., "today at 15:30")
-- Time keywords: "morning" (9am), "afternoon" (2pm), "evening" (6pm), "tonight" (8pm), "noon", "midnight"
-- ISO 8601 timestamp (e.g., "2026-02-11T14:00:00Z")
-- 6-field cron expression for recurring tasks (e.g., "0 */5 * * * *" for every 5 minutes)
-
-If the user's time reference is ambiguous or unsupported, ask: "When exactly would you like me to remind you? For example: 'in 10 minutes', 'tomorrow at 2pm', or 'Monday morning'?"
-
-If this tool returns an error about not understanding the date/time, ask the user to rephrase with a clearer time reference."#.into(),
+            description: "Schedule a recurring (cron) or one-time reminder. Supports: 'in X min/hours/days', 'tomorrow at HH:MM', day names, 'morning/afternoon/evening', ISO 8601, 6-field cron. Ask for clarification if time is vague.".into(),
             input_schema: schema_object(
                 json!({
                     "chat_id": {

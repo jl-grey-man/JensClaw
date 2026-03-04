@@ -214,7 +214,7 @@ impl Tool for AgentFactoryTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "create_agent_config".into(),
-            description: "Create a new agent configuration with validated tool whitelisting. Prevents unauthorized tools and ensures agents follow the Hard Rails architecture.".into(),
+            description: "Create a new agent config with validated tool whitelisting. Rejects unauthorized or hallucinated tools.".into(),
             input_schema: schema_object(
                 json!({
                     "agent_id": {

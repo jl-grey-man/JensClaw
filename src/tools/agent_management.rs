@@ -423,7 +423,7 @@ impl Tool for SpawnAgentTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "spawn_agent".into(),
-            description: "Spawn a specialized agent to complete a task. The agent will execute with its configured tools and save results to a file. This is REAL execution - the agent will perform actual work using the sub_agent engine.".into(),
+            description: "Spawn a specialized agent to execute a task with its configured tools. Results saved to output file.".into(),
             input_schema: schema_object(
                 json!({
                     "agent_id": {

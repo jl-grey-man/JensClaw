@@ -253,7 +253,7 @@ impl Tool for ExecuteWorkflowTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "execute_workflow".into(),
-            description: "Execute a sequential workflow of multiple agents. Each step runs in order, and if verification fails at any step, the workflow stops. Perfect for multi-stage tasks like research → write → review.".into(),
+            description: "Execute a sequential multi-agent workflow. Steps run in order; verification failure stops the pipeline.".into(),
             input_schema: schema_object(
                 json!({
                     "name": {

@@ -299,7 +299,7 @@ impl Tool for ReadTrackingTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "read_tracking".into(),
-            description: "Read the tracking data (goals, projects, tasks, reminders). Shows summary by default. Use 'type' parameter to see specific sections: 'goals', 'projects', 'tasks', 'reminders', or 'all' for everything.".into(),
+            description: "Read tracking data (goals, projects, tasks, reminders). Filter by type or use 'all' for everything.".into(),
             input_schema: schema_object(
                 json!({
                     "type": {
@@ -823,7 +823,7 @@ impl Tool for AddNoteTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "add_note".into(),
-            description: "Add a note to a goal, project, or task. Use this to record context, observations, or updates about an item. Notes are appended to existing notes with timestamps.".into(),
+            description: "Append a timestamped note to a goal, project, or task for context and observations.".into(),
             input_schema: schema_object(
                 json!({
                     "item_type": {
@@ -973,7 +973,7 @@ impl Tool for RemoveNoteTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: "remove_note".into(),
-            description: "Remove a specific note from a goal, project, or task by its index (0-based), or clear all notes if index is -1. Returns the updated list of remaining notes.".into(),
+            description: "Remove a note by 0-based index from a goal/project/task, or use index -1 to clear all notes.".into(),
             input_schema: schema_object(
                 json!({
                     "item_type": {
