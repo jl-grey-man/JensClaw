@@ -266,7 +266,7 @@ The Pi has a small SD card (29G) and an SSD at `/mnt/storage` (916G). Heavy dire
 
 ## Known Test Failures
 
-**None.** All 535 tests pass (475 lib + 60 integration/doc).
+**None.** All 553 tests pass (493 lib + 60 integration, 2 doc-tests ignored).
 
 ## Security Model — Memory System
 
