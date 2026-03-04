@@ -103,7 +103,7 @@ Runs on a Raspberry Pi 5 at `/home/jens/sandy`. Build artifacts, logs, and cargo
 | `llm_retry.rs` | Retry logic for LLM calls |
 | `backoff.rs` | Exponential backoff for API rate limits |
 | `claude.rs` | Claude-specific API client |
-| `memory.rs` | Memory manager: loads AGENTS.md, insights, solutions, patterns, errors into context |
+| `memory.rs` | Memory manager: builds memory context (full or summary mode), loads rules, counts entries |
 | `memory_decay.rs` | Time-based decay weighting for memory entries |
 | `db.rs` | SQLite database schema and queries |
 | `scheduler.rs` | Cron/once task scheduler (runs in background) |
@@ -115,7 +115,7 @@ Runs on a Raspberry Pi 5 at `/home/jens/sandy`. Build artifacts, logs, and cargo
 | `error.rs` | Error types |
 | `error_classifier.rs` | Classifies errors for self-healing |
 | `confidence.rs` | Decay-weighted confidence scoring for patterns |
-| `context_guard.rs` | Context window size management |
+| `context_guard.rs` | Context window size management, token budget logging |
 | `exec_log.rs` | Execution logging |
 | `gateway.rs` | API gateway / web dashboard (axum) |
 | `heartbeat.rs` | Health check / heartbeat system |
@@ -276,6 +276,23 @@ The Pi has a small SD card (29G) and an SSD at `/mnt/storage` (916G). Heavy dire
 - **Confidence lock protection:** Only control chats can set `confidence_locked = true` on patterns
 - **Hook injection escaping:** Memory context injected into sub-agent tasks via `MemoryInjectHook` is XML-escaped
 - **Input validation:** Memory writes reject content >5000 chars, pattern fields >1000 chars, notes >2000 chars. Content containing XML closing tags matching prompt structure (e.g., `</recent_solutions>`) is rejected.
+
+## Token Optimization
+
+Sandy uses several strategies to minimize LLM token consumption:
+
+- **Session windowing:** Only the last `context_window_messages` (default 12) messages are sent to the LLM. Older messages are summarized as a preamble (first sentence extraction, 2000 char cap). Full session stays in SQLite for saving.
+- **Memory summary mode:** `memory_injection_mode: "summary"` (default) injects counts + latest preview per category + rules instead of bulk memory. Rules always injected. Use `"full"` to restore bulk injection.
+- **Token budget logging:** `tracing::info` logs system/tool/message token estimates on first LLM iteration per user message.
+- **Compaction manages storage, windowing manages sending:** `compact_messages()` triggers when stored messages > `max_session_messages` (40). Windowing is applied independently at send time.
+
+Key config values:
+- `context_window_messages: 12` — messages sent to LLM per call
+- `max_session_messages: 40` — stored messages before compaction
+- `compact_keep_recent: 15` — kept after compaction
+- `max_history_messages: 20` — DB history fallback
+- `max_tool_iterations: 25` — max tool loop iterations per query
+- `memory_injection_mode: "summary"` — "summary" or "full"
 
 ## Concurrency & Resilience Model
 
