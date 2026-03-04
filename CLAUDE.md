@@ -313,7 +313,7 @@ Key config values:
 - `/storage` assumed to exist but doesn't on all deployments
 - `include_dir!` embeds only 2 skills at compile time; rest are runtime-only
 - Memory category files (`insights.md`, etc.) are plain markdown, not structured
-- Conversation logs accumulate without rotation
+- Conversation logs: `scripts/cleanup_conversations.sh` runs nightly via cron (`0 2 * * *`), archives `.md` files >7 days to `archive/`, deletes archives >30 days, checkpoints WAL. Does NOT trim `exec_log.jsonl`/`activity_log.json` or VACUUM while Sandy runs (corruption/lock risk)
 - `patterns.json` schema has been reworked multiple times; old entries may have stale fields
 - WhatsApp and Discord integrations are experimental/incomplete
 - `scripts/auto-update.sh` is legacy (infinite loop daemon); replaced by `scripts/sandy-updater.sh` (single-run for systemd timer)
