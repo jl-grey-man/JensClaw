@@ -18,6 +18,7 @@ fn main() {
         max_history_messages: 10,
         max_session_messages: 10,
         compact_keep_recent: 5,
+        context_window_messages: 12,
         data_dir: "/tmp/sandy_test".to_string(),
         working_dir: "/tmp/sandy_test".to_string(),
         timezone: "UTC".to_string(),

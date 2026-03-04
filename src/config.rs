@@ -52,6 +52,9 @@ fn default_max_session_messages() -> usize {
 fn default_compact_keep_recent() -> usize {
     10
 }
+fn default_context_window_messages() -> usize {
+    12
+}
 fn default_whatsapp_webhook_port() -> u16 {
     8080
 }
@@ -72,9 +75,8 @@ fn default_agents_file() -> String {
 }
 fn default_fallback_models() -> Vec<String> {
     vec![
-        "anthropic/claude-sonnet-3.5".into(),
-        "openai/gpt-4o".into(),
-        "anthropic/claude-3.5-haiku".into(),
+        "anthropic/claude-3.7-sonnet".into(),
+        "anthropic/claude-haiku-4.5".into(),
     ]
 }
 
@@ -118,6 +120,8 @@ pub struct Config {
     pub max_session_messages: usize,
     #[serde(default = "default_compact_keep_recent")]
     pub compact_keep_recent: usize,
+    #[serde(default = "default_context_window_messages")]
+    pub context_window_messages: usize,
     #[serde(default)]
     pub whatsapp_access_token: Option<String>,
     #[serde(default)]
@@ -284,6 +288,7 @@ pub(crate) mod tests {
             control_chat_ids: vec![],
             max_session_messages: 25,
             compact_keep_recent: 10,
+            context_window_messages: 12,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,

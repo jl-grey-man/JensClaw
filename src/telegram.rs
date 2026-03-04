@@ -19,6 +19,15 @@ fn build_memory_summary(data_dir: &str) -> String {
     let data_path = std::path::Path::new(data_dir);
     let mut lines = Vec::new();
 
+    // Project context (if detected during response)
+    if let Ok(context) = std::fs::read_to_string("/tmp/sandy_project_context.txt") {
+        if !context.trim().is_empty() {
+            lines.push(format!("Project: {}", context.trim()));
+        }
+        // Clear the file after reading
+        let _ = std::fs::remove_file("/tmp/sandy_project_context.txt");
+    }
+
     // Patterns summary
     let patterns = read_patterns(data_path);
     if !patterns.patterns.is_empty() {
@@ -52,6 +61,42 @@ fn build_memory_summary(data_dir: &str) -> String {
             "Tracking: {} goals, {} projects, {} tasks ({} active)",
             active_goals, active_projects, todo_tasks + in_progress, in_progress
         ));
+
+    // Project context detection - check for recent project file access
+    let storage_path = std::path::Path::new("/mnt/storage");
+    if storage_path.exists() {
+        let now = std::time::SystemTime::now();
+        if let Ok(entries) = std::fs::read_dir(storage_path) {
+            let mut recent_projects: Vec<String> = Vec::new();
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    if let Ok(accessed) = metadata.accessed() {
+                        if let Ok(duration) = now.duration_since(accessed) {
+                            if duration.as_secs() < 300 { // 5 minutes
+                                if let Some(name) = entry.file_name().to_str() {
+                                    if name.ends_with(".json") || name.ends_with(".md") {
+                                        let project_name = name
+                                            .trim_end_matches(".json")
+                                            .trim_end_matches(".md")
+                                            .split("_")
+                                            .next()
+                                            .unwrap_or("")
+                                            .to_string();
+                                        if !project_name.is_empty() && !recent_projects.contains(&project_name) {
+                                            recent_projects.push(project_name);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if !recent_projects.is_empty() {
+                lines.push(format!("Project: {} (active)", recent_projects.join(", ")));
+            }
+        }
+    }
     }
 
     // Memory files summary (insights, solutions, patterns notes, errors, rules)
@@ -379,6 +424,131 @@ async fn handle_message(
                 )
                 .await;
             return Ok(());
+        }
+    }
+
+    // Handle audio files (mp3, m4a, etc. sent as audio attachments)
+    if text.is_empty() {
+        if let Some(audio) = msg.audio() {
+            if let Some(ref openai_key) = state.config.openai_api_key {
+                match download_telegram_file(&bot, &audio.file.id.0).await {
+                    Ok(bytes) => {
+                        let sender_name = msg
+                            .from
+                            .as_ref()
+                            .map(|u| {
+                                u.username.clone().unwrap_or_else(|| u.first_name.clone())
+                            })
+                            .unwrap_or_else(|| "Unknown".into());
+                        let label = audio
+                            .title
+                            .as_deref()
+                            .unwrap_or("audio file");
+                        match crate::transcribe::transcribe_audio(openai_key, &bytes).await {
+                            Ok(transcription) => {
+                                text = format!(
+                                    "[audio \"{}\" from {}]: {}",
+                                    sanitize_xml(label),
+                                    sanitize_xml(&sender_name),
+                                    sanitize_xml(&transcription)
+                                );
+                            }
+                            Err(e) => {
+                                error!("Whisper transcription of audio file failed: {e}");
+                                text = format!(
+                                    "[audio \"{}\" from {}]: [transcription failed: {e}]",
+                                    sanitize_xml(label),
+                                    sanitize_xml(&sender_name)
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to download audio file: {e}");
+                    }
+                }
+            } else {
+                let _ = bot
+                    .send_message(
+                        msg.chat.id,
+                        "Audio files not supported (no Whisper API key configured)",
+                    )
+                    .await;
+                return Ok(());
+            }
+        }
+    }
+
+    // Handle audio files sent as documents (e.g. .ogg, .mp3, .m4a, .wav, .flac)
+    if text.is_empty() {
+        if let Some(doc) = msg.document() {
+            let is_audio = doc
+                .mime_type
+                .as_ref()
+                .map(|m| m.type_().as_str() == "audio")
+                .unwrap_or(false);
+            if is_audio {
+                if let Some(ref openai_key) = state.config.openai_api_key {
+                    match download_telegram_file(&bot, &doc.file.id.0).await {
+                        Ok(bytes) => {
+                            let sender_name = msg
+                                .from
+                                .as_ref()
+                                .map(|u| {
+                                    u.username
+                                        .clone()
+                                        .unwrap_or_else(|| u.first_name.clone())
+                                })
+                                .unwrap_or_else(|| "Unknown".into());
+                            let label = doc
+                                .file_name
+                                .as_deref()
+                                .unwrap_or("audio document");
+                            match crate::transcribe::transcribe_audio(openai_key, &bytes).await
+                            {
+                                Ok(transcription) => {
+                                    text = format!(
+                                        "[audio \"{}\" from {}]: {}",
+                                        sanitize_xml(label),
+                                        sanitize_xml(&sender_name),
+                                        sanitize_xml(&transcription)
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Whisper transcription of audio document failed: {e}"
+                                    );
+                                    text = format!(
+                                        "[audio \"{}\" from {}]: [transcription failed: {e}]",
+                                        sanitize_xml(label),
+                                        sanitize_xml(&sender_name)
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to download audio document: {e}");
+                        }
+                    }
+                } else {
+                    let _ = bot
+                        .send_message(
+                            msg.chat.id,
+                            "Audio files not supported (no Whisper API key configured)",
+                        )
+                        .await;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    // Append caption for audio/document messages (transcription + user comment)
+    if text.starts_with("[audio ") || text.starts_with("[voice ") {
+        if let Some(caption) = msg.caption() {
+            if !caption.is_empty() {
+                text.push_str(&format!("\n[caption]: {}", sanitize_xml(caption)));
+            }
         }
     }
 
@@ -767,8 +937,18 @@ pub async fn process_with_claude_mode(
     for iteration in 0..state.config.max_tool_iterations {
         meta.iterations = iteration + 1;
 
-        // Truncate old tool results to reduce token count sent to the LLM
-        let send_messages = truncate_old_tool_results(&messages, 3);
+        // Window messages to last N, then truncate old tool results
+        let windowed = window_messages(&messages, state.config.context_window_messages);
+        let send_messages = truncate_old_tool_results(&windowed, 3);
+
+        // Log token budget on first iteration for observability
+        if iteration == 0 {
+            let sys_tokens = crate::context_guard::estimate_system_tokens(&system_prompt);
+            let tool_tokens = crate::context_guard::estimate_tool_tokens(&tool_defs);
+            let msg_tokens = crate::context_guard::estimate_tokens(&send_messages);
+            crate::context_guard::log_token_budget(sys_tokens, tool_tokens, msg_tokens);
+        }
+
         let response = state
             .llm
             .send_message(&system_prompt, send_messages, Some(tool_defs.clone()))
@@ -931,6 +1111,102 @@ pub async fn process_with_claude_mode(
 /// For tool_result blocks older than `keep_recent_iterations`, replaces
 /// the content with a short summary. Keeps ToolUse blocks intact (small).
 /// The returned vec is a copy — the original messages are not modified.
+/// Build a preamble summary from older messages that fall outside the context window.
+/// Extracts the first sentence from each user/assistant text message, caps total at 2000 chars.
+/// Returns None if there are no older messages.
+fn build_session_preamble(older_messages: &[Message]) -> Option<String> {
+    if older_messages.is_empty() {
+        return None;
+    }
+
+    let mut lines = Vec::new();
+    let mut total_len = 0;
+    let max_total = 2000;
+
+    for msg in older_messages {
+        let text = match &msg.content {
+            MessageContent::Text(t) => t.clone(),
+            MessageContent::Blocks(blocks) => {
+                // Extract text blocks only, skip tool_use/tool_result
+                let texts: Vec<&str> = blocks
+                    .iter()
+                    .filter_map(|b| match b {
+                        ContentBlock::Text { text } => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                if texts.is_empty() {
+                    continue;
+                }
+                texts.join(" ")
+            }
+        };
+
+        if text.trim().is_empty() {
+            continue;
+        }
+
+        // Extract first sentence (up to first period, newline, or 200 chars)
+        let first_sentence = text
+            .trim()
+            .split_once('.')
+            .map(|(s, _)| format!("{}.", s))
+            .unwrap_or_else(|| {
+                text.trim()
+                    .split_once('\n')
+                    .map(|(s, _)| s.to_string())
+                    .unwrap_or_else(|| text.trim().to_string())
+            });
+        let first_sentence = if first_sentence.len() > 200 {
+            format!("{}...", &first_sentence[..197])
+        } else {
+            first_sentence
+        };
+
+        let prefix = if msg.role == "user" { "User" } else { "Sandy" };
+        let line = format!("{}: {}", prefix, first_sentence);
+
+        let added_len = if lines.is_empty() { line.len() } else { line.len() + 1 }; // +1 for \n join
+        if total_len + added_len > max_total {
+            break;
+        }
+        total_len += added_len;
+        lines.push(line);
+    }
+
+    if lines.is_empty() {
+        return None;
+    }
+
+    Some(lines.join("\n"))
+}
+
+/// Apply session windowing: keep only the last N messages, prepend a preamble of older context.
+/// Returns windowed messages ready for sending to LLM. Full messages remain unchanged for saving.
+fn window_messages(messages: &[Message], window_size: usize) -> Vec<Message> {
+    if messages.len() <= window_size {
+        return messages.to_vec();
+    }
+
+    let split_at = messages.len() - window_size;
+    let preamble = build_session_preamble(&messages[..split_at]);
+    let mut windowed = Vec::new();
+
+    if let Some(preamble_text) = preamble {
+        windowed.push(Message {
+            role: "user".into(),
+            content: MessageContent::Text(format!("[Earlier context summary]\n{}", preamble_text)),
+        });
+        windowed.push(Message {
+            role: "assistant".into(),
+            content: MessageContent::Text("Got it, I have the context.".into()),
+        });
+    }
+
+    windowed.extend_from_slice(&messages[split_at..]);
+    windowed
+}
+
 fn truncate_old_tool_results(messages: &[Message], keep_recent_iterations: usize) -> Vec<Message> {
     // Count tool iterations from the end (each user message with tool_result blocks = 1 iteration)
     // Find the cutoff: messages at indices < cutoff_index get their tool results truncated
@@ -2236,6 +2512,120 @@ mod tests {
         assert_eq!(max_tool_result_chars(100), 2_000);
         // Zero context → floor of 2000
         assert_eq!(max_tool_result_chars(0), 2_000);
+    }
+
+    fn text_msg(role: &str, text: &str) -> Message {
+        Message {
+            role: role.into(),
+            content: MessageContent::Text(text.into()),
+        }
+    }
+
+    #[test]
+    fn test_build_session_preamble_empty() {
+        assert_eq!(build_session_preamble(&[]), None);
+    }
+
+    #[test]
+    fn test_build_session_preamble_extracts_sentences() {
+        let msgs = vec![
+            text_msg("user", "I need help with my project. It's really complex."),
+            text_msg("assistant", "Sure, let me look into that. I'll check your files."),
+        ];
+        let preamble = build_session_preamble(&msgs).unwrap();
+        assert!(preamble.contains("User: I need help with my project."));
+        assert!(preamble.contains("Sandy: Sure, let me look into that."));
+        // Should NOT contain the second sentences
+        assert!(!preamble.contains("really complex"));
+        assert!(!preamble.contains("check your files"));
+    }
+
+    #[test]
+    fn test_build_session_preamble_caps_at_2000_chars() {
+        let msgs: Vec<Message> = (0..100)
+            .map(|i| text_msg("user", &format!("Message number {} with some extra content to fill space.", i)))
+            .collect();
+        let preamble = build_session_preamble(&msgs).unwrap();
+        assert!(preamble.len() <= 2000);
+    }
+
+    #[test]
+    fn test_build_session_preamble_skips_tool_blocks() {
+        let msgs = vec![
+            text_msg("user", "Run the command please."),
+            Message {
+                role: "assistant".into(),
+                content: MessageContent::Blocks(vec![
+                    ContentBlock::ToolUse {
+                        id: "t1".into(),
+                        name: "bash".into(),
+                        input: serde_json::json!({"cmd": "ls"}),
+                    },
+                ]),
+            },
+            Message {
+                role: "user".into(),
+                content: MessageContent::Blocks(vec![
+                    ContentBlock::ToolResult {
+                        tool_use_id: "t1".into(),
+                        content: "file1.txt\nfile2.txt".into(),
+                        is_error: None,
+                    },
+                ]),
+            },
+        ];
+        let preamble = build_session_preamble(&msgs).unwrap();
+        assert!(preamble.contains("User: Run the command please."));
+        // Tool blocks should be skipped entirely
+        assert!(!preamble.contains("bash"));
+        assert!(!preamble.contains("file1"));
+    }
+
+    #[test]
+    fn test_window_messages_no_windowing_needed() {
+        let msgs = vec![text_msg("user", "hello"), text_msg("assistant", "hi")];
+        let windowed = window_messages(&msgs, 12);
+        assert_eq!(windowed.len(), 2);
+    }
+
+    #[test]
+    fn test_window_messages_applies_windowing() {
+        let msgs: Vec<Message> = (0..20)
+            .map(|i| {
+                if i % 2 == 0 {
+                    text_msg("user", &format!("User message {}.", i))
+                } else {
+                    text_msg("assistant", &format!("Assistant reply {}.", i))
+                }
+            })
+            .collect();
+        let windowed = window_messages(&msgs, 6);
+        // Should have 6 recent + 2 preamble = 8
+        assert_eq!(windowed.len(), 8);
+        // First two should be preamble pair
+        if let MessageContent::Text(t) = &windowed[0].content {
+            assert!(t.contains("[Earlier context summary]"));
+        } else {
+            panic!("Expected text preamble");
+        }
+        assert_eq!(windowed[1].role, "assistant");
+        // Last message should be the 20th (index 19)
+        if let MessageContent::Text(t) = &windowed[7].content {
+            assert!(t.contains("19"));
+        }
+    }
+
+    #[test]
+    fn test_window_messages_preserves_recent() {
+        let msgs: Vec<Message> = (0..15)
+            .map(|i| text_msg("user", &format!("msg {}", i)))
+            .collect();
+        let windowed = window_messages(&msgs, 12);
+        // Last message in windowed should be "msg 14"
+        let last = windowed.last().unwrap();
+        if let MessageContent::Text(t) = &last.content {
+            assert_eq!(t, "msg 14");
+        }
     }
 }
 

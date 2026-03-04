@@ -383,6 +383,7 @@ pub struct OpenAiProvider {
     fallback_models: Vec<String>,
     max_tokens: u32,
     chat_url: String,
+    base_url: String,
 }
 
 impl OpenAiProvider {
@@ -400,7 +401,79 @@ impl OpenAiProvider {
             fallback_models: config.fallback_models.clone(),
             max_tokens: config.max_tokens,
             chat_url,
+            base_url: base.trim_end_matches('/').to_string(),
         }
+    }
+
+    /// Query the provider's /models endpoint and find the best available model.
+    /// Prefers Claude models in order: sonnet 4.x > sonnet 3.7 > haiku 4.x > any claude.
+    /// Only works with OpenRouter-compatible APIs.
+    async fn discover_best_model(&self) -> Option<String> {
+        let models_url = format!("{}/models", self.base_url);
+        let mut req = self.http.get(&models_url);
+        if !self.api_key.trim().is_empty() {
+            req = req.header("Authorization", format!("Bearer {}", self.api_key));
+        }
+        let response = match req.send().await {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Model discovery failed (network): {}", e);
+                return None;
+            }
+        };
+        let text = match response.text().await {
+            Ok(t) => t,
+            Err(e) => {
+                warn!("Model discovery failed (body): {}", e);
+                return None;
+            }
+        };
+
+        // Parse the model list — OpenRouter returns { "data": [ { "id": "..." }, ... ] }
+        #[derive(Deserialize)]
+        struct ModelEntry { id: String }
+        #[derive(Deserialize)]
+        struct ModelsResponse { data: Vec<ModelEntry> }
+
+        let models: ModelsResponse = match serde_json::from_str(&text) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("Model discovery failed (parse): {}", e);
+                return None;
+            }
+        };
+
+        let claude_models: Vec<&str> = models.data.iter()
+            .map(|m| m.id.as_str())
+            .filter(|id| id.starts_with("anthropic/claude"))
+            .filter(|id| !id.contains(":thinking")) // skip thinking variants
+            .collect();
+
+        // Priority order: prefer newer, mid-tier models (good balance of cost/quality)
+        let preference = [
+            "anthropic/claude-sonnet-4.5",
+            "anthropic/claude-sonnet-4.6",
+            "anthropic/claude-sonnet-4",
+            "anthropic/claude-3.7-sonnet",
+            "anthropic/claude-haiku-4.5",
+            "anthropic/claude-3.5-sonnet",
+        ];
+
+        for preferred in &preference {
+            if claude_models.contains(preferred) {
+                info!("Model discovery: found available model {}", preferred);
+                return Some(preferred.to_string());
+            }
+        }
+
+        // If none of the preferred models matched, take any claude model
+        if let Some(fallback) = claude_models.first() {
+            info!("Model discovery: using first available Claude model {}", fallback);
+            return Some(fallback.to_string());
+        }
+
+        warn!("Model discovery: no Claude models found on provider");
+        None
     }
 }
 
@@ -582,7 +655,51 @@ impl LlmProvider for OpenAiProvider {
         }
     }
 
-    // All models failed
+    // All configured models failed — try auto-discovering an available model
+    if self.base_url.contains("openrouter") {
+        warn!("All configured models failed. Attempting auto-discovery...");
+        if let Some(discovered) = self.discover_best_model().await {
+            // Check if we already tried this model
+            let already_tried = models_to_try.iter().any(|m| **m == discovered);
+            if !already_tried {
+                info!("Auto-discovery: trying discovered model {}", discovered);
+                let mut body = json!({
+                    "model": &discovered,
+                    "max_tokens": self.max_tokens,
+                    "messages": oai_messages,
+                });
+                if let Some(ref tool_defs) = tools {
+                    if !tool_defs.is_empty() {
+                        body["tools"] = json!(translate_tools_to_oai(tool_defs));
+                    }
+                }
+                let mut req = self
+                    .http
+                    .post(&self.chat_url)
+                    .header("Content-Type", "application/json")
+                    .header("HTTP-Referer", "https://github.com/jl-grey-man/JensClaw")
+                    .header("X-Title", "Sandy ADHD Coach")
+                    .json(&body);
+                if !self.api_key.trim().is_empty() {
+                    req = req.header("Authorization", format!("Bearer {}", self.api_key));
+                }
+                if let Ok(response) = req.send().await {
+                    let status = response.status();
+                    if let Ok(text) = response.text().await {
+                        if status.is_success() {
+                            if let Ok(oai) = serde_json::from_str::<OaiResponse>(&text) {
+                                info!("Auto-discovered model {} worked!", discovered);
+                                return Ok(translate_oai_response(oai));
+                            }
+                        }
+                        warn!("Auto-discovered model {} also failed: HTTP {}", discovered, status);
+                    }
+                }
+            }
+        }
+    }
+
+    // Truly all models failed
     Err(last_error.unwrap_or_else(|| MicroClawError::LlmApi("All models failed".into())))
     }
 }
@@ -1214,6 +1331,7 @@ mod tests {
             control_chat_ids: vec![],
             max_session_messages: 25,
             compact_keep_recent: 10,
+            context_window_messages: 12,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,
@@ -1253,6 +1371,7 @@ mod tests {
             control_chat_ids: vec![],
             max_session_messages: 25,
             compact_keep_recent: 10,
+            context_window_messages: 12,
             whatsapp_access_token: None,
             whatsapp_phone_number_id: None,
             whatsapp_verify_token: None,

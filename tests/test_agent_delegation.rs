@@ -161,6 +161,7 @@ fn create_test_config() -> Config {
         control_chat_ids: vec![],
         max_session_messages: 25,
         compact_keep_recent: 10,
+        context_window_messages: 12,
         whatsapp_access_token: None,
         whatsapp_phone_number_id: None,
         whatsapp_verify_token: None,
