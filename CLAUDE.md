@@ -266,7 +266,7 @@ The Pi has a small SD card (29G) and an SSD at `/mnt/storage` (916G). Heavy dire
 
 ## Known Test Failures
 
-**None.** All 553 tests pass (493 lib + 60 integration, 2 doc-tests ignored).
+**None.** All 560 tests pass (500 lib + 60 integration, 2 doc-tests ignored).
 
 ## Security Model — Memory System
 
@@ -287,12 +287,28 @@ Sandy uses several strategies to minimize LLM token consumption:
 - **Compaction manages storage, windowing manages sending:** `compact_messages()` triggers when stored messages > `max_session_messages` (40). Windowing is applied independently at send time.
 
 Key config values:
-- `context_window_messages: 12` — messages sent to LLM per call
+- `context_window_messages: 12` — messages sent to LLM per call (doubled for resumed jobs)
 - `max_session_messages: 40` — stored messages before compaction
 - `compact_keep_recent: 15` — kept after compaction
 - `max_history_messages: 20` — DB history fallback
-- `max_tool_iterations: 25` — max tool loop iterations per query
+- `max_tool_iterations: 50` — max tool loop iterations per query
 - `memory_injection_mode: "summary"` — "summary" or "full"
+
+## Long Job Checkpoint & Resume
+
+When Sandy hits `max_tool_iterations`, she saves a checkpoint instead of giving up:
+1. The job summary is stored in `chat_settings` (`paused_job` key)
+2. Sandy responds: *"⏸ I've hit my step limit — progress is saved. Reply **continue** and I'll pick up right where I left off."*
+3. The full session (all tool calls and results) is saved to SQLite as usual
+
+When the user replies with "continue" (or "keep going", "resume", etc.):
+1. Sandy detects `paused_job` in `chat_settings` + a continuation trigger
+2. The `paused_job` key is cleared
+3. The "continue" message is replaced with a resume instruction reminding Sandy of the original task
+4. The context window is doubled (`context_window_messages * 2`) so Sandy can see more prior work
+5. Sandy resumes with a fresh iteration budget
+
+**Resume triggers:** "continue", "keep going", "go on", "resume", "please continue", "carry on", "pick up where you left off", and phrases starting with "continue " or "resume ".
 
 ## Concurrency & Resilience Model
 
@@ -342,3 +358,58 @@ Key config values:
 - Duplicate proactive schedules: FIXED — `ensure_for_chat` now deletes existing proactive tasks before recreating (idempotent)
 - Timezone fallback: FIXED — now logs `tracing::warn!` before falling back to UTC
 - **Model auto-discovery (partial):** `llm.rs` queries OpenRouter `/models` when all configured models fail, but only as a last resort. Could be improved: (1) cache the discovered model for the session instead of re-querying each time, (2) persist discovered model to config so it survives restarts, (3) notify the user via Telegram when a fallback model is being used, (4) handle 402 (out of credits) distinctly from 404 (model gone) — currently auto-discovery triggers on both but can't fix a billing issue
+
+## Guardrails System
+
+Sandy's system prompt now includes **tool whitelists and validation rules** loaded from `storage/guardrails.json` at runtime.
+
+### How It Works
+
+1. On startup, `telegram.rs` loads `storage/guardrails.json`
+2. Injects its content into the system prompt BEFORE the LLM sees any user messages
+3. Claude sees explicit allowed/forbidden tool lists per agent role
+4. Tool calls that violate rules are caught early
+
+### Guardrail File Structure
+
+```json
+{
+  "version": "1.0",
+  "updated": "2025-03-05",
+  "rules": [
+    {
+      "role": "Sandy (orchestrator)",
+      "allowed_tools": [...],
+      "forbidden_tools": [...],
+      "enforcement": "hard",
+      "rationale": "..."
+    }
+  ],
+  "global_constraints": [...]
+}
+```
+
+### Guardrail Types
+
+- **Hard enforcement:** System blocks violating tool calls with error
+- **Soft enforcement:** Claude sees the rule but no runtime block (used for design principles, not technical restrictions)
+
+### Editing Guardrails
+
+To add/change rules:
+
+1. Edit `/mnt/storage/guardrails.json` (or `storage/guardrails.json` in repo)
+2. Update `"updated"` timestamp
+3. Restart Sandy OR just let it reload on next user message (prompt is rebuilt per-message)
+4. Commit changes if modifying repo copy
+
+**Never edit rules directly in telegram.rs** — the JSON file is the single source of truth.
+
+### Current Guardrails
+
+- Sandy CANNOT use `web_search`, `web_fetch`, `browser` (must delegate to Zilla)
+- Zilla (research agent) can ONLY use web tools + file ops
+- Gonza (writer) can ONLY use file ops (no web access)
+- Solution logs MUST include verification proof
+- Memory logs MUST be specific (>30 chars, no vague statements)
+
