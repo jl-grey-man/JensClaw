@@ -866,6 +866,40 @@ pub async fn process_with_claude_mode(
         load_messages_from_db(state, chat_id, chat_type)?
     };
 
+    // Resume detection: if a job was paused and the user says "continue", inject resume context.
+    // Must check before compaction and windowing so we can widen the window.
+    let paused_job = state.db.get_chat_setting(chat_id, "paused_job").ok().flatten();
+    let is_resuming = paused_job.is_some()
+        && messages.len() > 2  // guard against empty/reset sessions
+        && messages
+            .last()
+            .and_then(|m| {
+                if m.role == "user" {
+                    if let MessageContent::Text(t) = &m.content {
+                        Some(t.as_str())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .map(is_continue_message)
+            .unwrap_or(false);
+
+    if is_resuming {
+        if let Some(ref summary) = paused_job {
+            if let Err(e) = state.db.delete_chat_setting(chat_id, "paused_job") {
+                tracing::error!("Failed to clear paused_job for chat {chat_id}: {e}");
+            }
+            if let Some(last_msg) = messages.last_mut() {
+                last_msg.content = MessageContent::Text(format!(
+                    "[RESUME] You were working on: {summary}\n\nYou hit the iteration limit and your progress was saved. Continue from where you left off — the conversation history above shows what's already been done. Don't repeat completed steps."
+                ));
+            }
+        }
+    }
+
     // If override_prompt is provided (from scheduler), add it as a user message
     if let Some(prompt) = override_prompt {
         messages.push(Message {
@@ -945,8 +979,14 @@ pub async fn process_with_claude_mode(
     for iteration in 0..state.config.max_tool_iterations {
         meta.iterations = iteration + 1;
 
-        // Window messages to last N, then truncate old tool results
-        let windowed = window_messages(&messages, state.config.context_window_messages);
+        // Window messages to last N, then truncate old tool results.
+        // Resumed jobs get a wider window so Sandy can see her prior work.
+        let window_size = if is_resuming {
+            (state.config.context_window_messages * 2).min(messages.len())
+        } else {
+            state.config.context_window_messages
+        };
+        let windowed = window_messages(&messages, window_size);
         let send_messages = truncate_old_tool_results(&windowed, 3);
 
         // Log token budget on first iteration for observability
@@ -1094,10 +1134,14 @@ pub async fn process_with_claude_mode(
         }, meta));
     }
 
-    // Max iterations reached — cap session with an assistant message so the
-    // conversation doesn't end on a tool_result (which would cause
-    // "tool call result does not follow tool call" on the next resume).
-    let max_iter_msg = "I reached the maximum number of tool iterations. Here's what I was working on — please try breaking your request into smaller steps.".to_string();
+    // Max iterations reached — save a checkpoint so the user can resume with "continue".
+    // The session ends on an assistant message (not tool_result) to keep the conversation valid.
+    let job_summary = extract_job_summary(&messages);
+    if let Err(e) = state.db.set_chat_setting(chat_id, "paused_job", &job_summary) {
+        tracing::error!("Failed to save paused_job for chat {chat_id}: {e}");
+    }
+
+    let max_iter_msg = "⏸ I've hit my step limit — progress is saved. Reply **continue** and I'll pick up right where I left off.".to_string();
     messages.push(Message {
         role: "assistant".into(),
         content: MessageContent::Text(max_iter_msg.clone()),
@@ -1120,6 +1164,45 @@ pub async fn process_with_claude_mode(
 /// the content with a short summary. Keeps ToolUse blocks intact (small).
 /// The returned vec is a copy — the original messages are not modified.
 /// Build a preamble summary from older messages that fall outside the context window.
+/// Returns true if the user's message is a signal to resume a paused job.
+fn is_continue_message(text: &str) -> bool {
+    let lower = text.trim().to_lowercase();
+    matches!(
+        lower.as_str(),
+        "continue"
+            | "keep going"
+            | "go on"
+            | "resume"
+            | "continue please"
+            | "keep going please"
+            | "please continue"
+            | "pick up where you left off"
+            | "carry on"
+    ) || lower.starts_with("continue ")
+        || lower.starts_with("resume ")
+}
+
+/// Extracts a brief summary of what Sandy was working on, from the last user text message.
+fn extract_job_summary(messages: &[Message]) -> String {
+    for msg in messages.iter().rev() {
+        if msg.role == "user" {
+            if let MessageContent::Text(t) = &msg.content {
+                let trimmed = t.trim();
+                // Skip the "[RESUME]" injection if somehow we're re-extracting
+                if trimmed.is_empty() || trimmed.starts_with("[RESUME]") {
+                    continue;
+                }
+                return if trimmed.len() > 200 {
+                    format!("{}…", &trimmed[..200])
+                } else {
+                    trimmed.to_string()
+                };
+            }
+        }
+    }
+    "the previous task".to_string()
+}
+
 /// Extracts the first sentence from each user/assistant text message, caps total at 2000 chars.
 /// Returns None if there are no older messages.
 fn build_session_preamble(older_messages: &[Message]) -> Option<String> {
@@ -1352,6 +1435,16 @@ fn build_system_prompt(
         prompt.push_str(agents);
         prompt.push_str("\n\n---\n\n");
     }
+
+    // Load guardrails (tool whitelisting and validation rules)
+    if let Ok(guardrails_str) = std::fs::read_to_string("storage/guardrails.json") {
+        if let Ok(guardrails) = serde_json::from_str::<serde_json::Value>(&guardrails_str) {
+            prompt.push_str("# SYSTEM GUARDRAILS\n\n");
+            prompt.push_str(&serde_json::to_string_pretty(&guardrails).unwrap_or_default());
+            prompt.push_str("\n\n---\n\n");
+        }
+    }
+
 
     // Cache break marker: everything above is static (cacheable),
     // everything below is dynamic (changes per request)
@@ -2634,6 +2727,80 @@ mod tests {
         if let MessageContent::Text(t) = &last.content {
             assert_eq!(t, "msg 14");
         }
+    }
+
+    #[test]
+    fn test_is_continue_message_matches() {
+        for phrase in &[
+            "continue",
+            "Continue",
+            "  continue  ",
+            "keep going",
+            "go on",
+            "resume",
+            "continue please",
+            "keep going please",
+            "please continue",
+            "pick up where you left off",
+            "carry on",
+            "continue the task",
+            "resume the search",
+        ] {
+            assert!(is_continue_message(phrase), "should match: {phrase}");
+        }
+    }
+
+    #[test]
+    fn test_is_continue_message_no_match() {
+        for phrase in &[
+            "hello",
+            "what's up",
+            "can you continue this story please",
+            "I want to continue working tomorrow",
+            "",
+            "yes",
+        ] {
+            assert!(!is_continue_message(phrase), "should not match: {phrase}");
+        }
+    }
+
+    #[test]
+    fn test_extract_job_summary_from_user_message() {
+        let messages = vec![
+            text_msg("user", "Please research all the ADHD medication options"),
+            text_msg("assistant", "I'll start researching..."),
+            text_msg("assistant", "⏸ I've hit my step limit — progress is saved."),
+        ];
+        let summary = extract_job_summary(&messages);
+        assert_eq!(summary, "Please research all the ADHD medication options");
+    }
+
+    #[test]
+    fn test_extract_job_summary_skips_resume_injection() {
+        let messages = vec![
+            text_msg("user", "original task"),
+            text_msg("assistant", "working..."),
+            text_msg("user", "[RESUME] You were working on: original task\n\nContinue."),
+        ];
+        // Should skip the [RESUME] message and find the earlier user message
+        let summary = extract_job_summary(&messages);
+        assert_eq!(summary, "original task");
+    }
+
+    #[test]
+    fn test_extract_job_summary_caps_at_200_chars() {
+        let long_text = "a".repeat(250);
+        let messages = vec![text_msg("user", &long_text)];
+        let summary = extract_job_summary(&messages);
+        assert!(summary.len() <= 204); // 200 chars + "…"
+        assert!(summary.ends_with('…'));
+    }
+
+    #[test]
+    fn test_extract_job_summary_fallback() {
+        let messages: Vec<Message> = vec![];
+        let summary = extract_job_summary(&messages);
+        assert_eq!(summary, "the previous task");
     }
 }
 

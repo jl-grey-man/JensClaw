@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "created": "2026-03-05T07:22:00Z",
+  "description": "Enforcement rules that MUST be checked before responding. These are not suggestions - they are mandatory checks.",
+  "pre_response_checks": [
+    {
+      "id": "verify_scheduled_tasks",
+      "enabled": true,
+      "priority": "high",
+      "trigger_keywords": [
+        "schemalagd",
+        "scheduled",
+        "cron",
+        "automation",
+        "när kollar du",
+        "har du någon uppgift",
+        "påminnelse",
+        "reminder"
+      ],
+      "required_action": "MUST call list_scheduled_tasks() before answering any question about scheduled tasks or automation status",
+      "failure_consequence": "User trust violation - never assume, always verify"
+    },
+    {
+      "id": "verify_file_before_claim",
+      "enabled": true,
+      "priority": "high",
+      "trigger_keywords": [
+        "did you",
+        "har du",
+        "finns det",
+        "is there",
+        "show me"
+      ],
+      "required_action": "MUST verify actual file/state existence before claiming something exists or was done",
+      "failure_consequence": "Hallucination - claiming without verification"
+    },
+    {
+      "id": "memory_after_error",
+      "enabled": true,
+      "priority": "critical",
+      "trigger_keywords": [
+        "error",
+        "mistake",
+        "fel",
+        "wrong"
+      ],
+      "required_action": "MUST log to memory (error + solution + pattern observation) before saying 'thanks for feedback'",
+      "failure_consequence": "Empty apology without learning - erodes trust"
+    },
+    {
+      "id": "feedback_loop_enforcement",
+      "enabled": true,
+      "priority": "critical",
+      "trigger_keywords": [
+        "feedback",
+        "återkoppling",
+        "du sa",
+        "you said",
+        "men det stämmer inte",
+        "that's wrong"
+      ],
+      "required_steps": [
+        "1. Read actual state (file/command output)",
+        "2. Log discrepancy to memory (category: errors)",
+        "3. Add observation to relevant pattern",
+        "4. Update hypothesis if confidence changes",
+        "5. Propose concrete change OR ask user what to fix"
+      ],
+      "required_action": "MUST complete all 5 steps before responding. Never skip logging. Never say 'tack' without verification.",
+      "failure_consequence": "Learned nothing - repeats same mistake next time"
+    }
+  ],
+  "response_patterns": [
+    {
+      "id": "no_empty_apologies",
+      "enabled": true,
+      "rule": "Never respond with only apology. Always include: what I did wrong + what I logged + what I'll do differently",
+      "bad_examples": [
+        "Tack för att du påpekade det",
+        "Sorry about that",
+        "You're right"
+      ],
+      "good_example": "Du har rätt - jag sa X när Y var sant. Loggat till [file] och uppdaterat [pattern]. Nästa gång kollar jag [action] först."
+    }
+  ]
+}
